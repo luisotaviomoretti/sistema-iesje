@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 const steps = ["Dados do Aluno", "Responsáveis", "Acadêmicos", "Descontos"];
 
 const NovaMatriculaPage = () => {
-  const { step, setFlow, nextStep, prevStep, setMatricula, matricula, selectedStudent, reset } = useEnrollment();
+  const { step, setFlow, nextStep, prevStep, setMatricula, matricula, selectedStudent, reset, setSelectedStudent } = useEnrollment();
   const [current, setCurrent] = useState(0);
   const { toast } = useToast();
   const [resumeOpen, setResumeOpen] = useState(false);
@@ -52,6 +52,7 @@ const NovaMatriculaPage = () => {
   const handleStartFresh = () => {
     clearDraft("nova-matricula");
     reset();
+    setSelectedStudent(null);
     setCurrent(0);
     setResumeOpen(false);
     toast({ title: "Wizard reiniciado", description: "Rascunho limpo e começando do zero." });
@@ -59,6 +60,7 @@ const NovaMatriculaPage = () => {
 
   const handleResume = () => {
     const stepTo = Math.min(steps.length - 1, Math.max(0, Number(resumeData?.step ?? 0)));
+    if (resumeData?.selectedStudent) setSelectedStudent(resumeData.selectedStudent as any);
     if (resumeData?.matricula) setMatricula(resumeData.matricula as any);
     setCurrent(stepTo);
     setResumeOpen(false);

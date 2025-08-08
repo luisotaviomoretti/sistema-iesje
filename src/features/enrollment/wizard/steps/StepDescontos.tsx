@@ -12,6 +12,7 @@ import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
 import type { Desconto } from "@/features/enrollment/types";
 import { Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const schema = z.object({ tipoId: z.string().min(1, "Selecione um tipo") });
 
@@ -22,10 +23,19 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
   const [local, setLocal] = useState<Desconto[]>(descontos as any);
 
   const form = useForm<{ tipoId: string }>({ resolver: zodResolver(schema), defaultValues: { tipoId: "" } });
-
+  const { toast } = useToast();
+  const watchedTipoId = form.watch("tipoId");
   const handleAdd = form.handleSubmit(({ tipoId }) => {
     const tipo = TIPOS_DESCONTO.find((t) => t.id === tipoId);
-    if (!tipo || !selectedStudent) return;
+    if (!tipo) return;
+    if (!selectedStudent) {
+      toast({
+        title: "Selecione o aluno",
+        description: "Você precisa selecionar um aluno para solicitar desconto.",
+        variant: "destructive",
+      });
+      return;
+    }
     const d: Desconto = {
       id: crypto.randomUUID(),
       student_id: selectedStudent.id,
@@ -38,6 +48,7 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
     addDesconto(d);
     setLocal((l) => [...l, d]);
     form.reset();
+    toast({ title: "Desconto adicionado", description: `${tipo.codigo} • ${tipo.descricao}` });
   });
 
   const canFinish = useMemo(() => baseMensal > 0, [baseMensal]);
@@ -71,7 +82,7 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
             </FormItem>
           )} />
           <div className="sm:col-span-1 flex items-end">
-            <Button type="submit" className="w-full">Adicionar</Button>
+            <Button type="submit" className="w-full" disabled={!selectedStudent || !watchedTipoId}>Adicionar</Button>
           </div>
         </form>
       </Form>
