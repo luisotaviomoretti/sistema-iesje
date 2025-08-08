@@ -7,15 +7,17 @@ import StepResponsaveis from "@/features/enrollment/wizard/steps/StepResponsavei
 import StepAcademicos from "@/features/enrollment/wizard/steps/StepAcademicos";
 import StepDescontos from "@/features/enrollment/wizard/steps/StepDescontos";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
-import { useLocalDraft } from "@/features/enrollment/wizard/useLocalDraft";
+import { useLocalDraft, clearDraft } from "@/features/enrollment/wizard/useLocalDraft";
 import { useToast } from "@/hooks/use-toast";
-
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 const steps = ["Dados do Aluno", "Responsáveis", "Acadêmicos", "Descontos"];
 
 const NovaMatriculaPage = () => {
-  const { step, setFlow, nextStep, prevStep, setMatricula, matricula, selectedStudent } = useEnrollment();
+  const { step, setFlow, nextStep, prevStep, setMatricula, matricula, selectedStudent, reset } = useEnrollment();
   const [current, setCurrent] = useState(0);
   const { toast } = useToast();
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [resumeData, setResumeData] = useState<any>(null);
 
   // SEO basics
   useEffect(() => {
@@ -34,8 +36,10 @@ const NovaMatriculaPage = () => {
 
   const draftData = useMemo(() => ({ step: current, matricula, selectedStudent }), [current, matricula, selectedStudent]);
   useLocalDraft("nova-matricula", draftData, (loaded) => {
-    if (typeof loaded.step === "number") setCurrent(loaded.step);
-    if (loaded.matricula) setMatricula(loaded.matricula as any);
+    if (loaded && (typeof (loaded as any).step === "number" || (loaded as any).matricula || (loaded as any).selectedStudent)) {
+      setResumeData(loaded);
+      setResumeOpen(true);
+    }
   });
 
   const goNext = useCallback(() => { setCurrent((s) => Math.min(steps.length - 1, s + 1)); nextStep(); }, [nextStep]);
@@ -45,19 +49,53 @@ const NovaMatriculaPage = () => {
 
   const baseMensal = Number(matricula?.valor_mensalidade_base || 0);
 
+  const handleStartFresh = () => {
+    clearDraft("nova-matricula");
+    reset();
+    setCurrent(0);
+    setResumeOpen(false);
+    toast({ title: "Wizard reiniciado", description: "Rascunho limpo e começando do zero." });
+  };
+
+  const handleResume = () => {
+    const stepTo = Math.min(steps.length - 1, Math.max(0, Number(resumeData?.step ?? 0)));
+    if (resumeData?.matricula) setMatricula(resumeData.matricula as any);
+    setCurrent(stepTo);
+    setResumeOpen(false);
+    toast({ title: "Rascunho retomado", description: `Voltamos para a etapa ${stepTo + 1}.` });
+  };
+
   const finish = () => {
     toast({ title: "Matrícula concluída (rascunho)", description: "Dados salvos localmente. Conecte ao Supabase para persistir." });
   };
-
   return (
     <main className="container py-8 space-y-8">
       <header className="space-y-1">
-        <h1 className="text-3xl font-bold">Nova Matrícula</h1>
-        <p className="text-sm text-muted-foreground">Preencha as etapas. O progresso é salvo automaticamente.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Nova Matrícula</h1>
+            <p className="text-sm text-muted-foreground">Preencha as etapas. O progresso é salvo automaticamente.</p>
+          </div>
+          <Button variant="outline" onClick={handleStartFresh}>Reiniciar do zero</Button>
+        </div>
       </header>
 
-      <WizardProgress steps={steps} current={current} />
+      <AlertDialog open={resumeOpen} onOpenChange={setResumeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retomar rascunho?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Encontramos um rascunho salvo desta matrícula. Você deseja retomar de onde parou ou começar do zero?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleStartFresh}>Começar do zero</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResume}>Retomar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
+      <WizardProgress steps={steps} current={current} />
       <Card>
         <CardHeader>
           <CardTitle>Etapa {current + 1}: {steps[current]}</CardTitle>
