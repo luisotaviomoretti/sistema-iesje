@@ -59,7 +59,7 @@ const IdentificacaoAluno = () => {
   const selecionarAluno = (aluno: Student) => {
     setSelectedStudent(aluno);
     setFlow("rematricula");
-    navigate("/rematricula");
+    navigate(`/rematricula/${aluno.id}`);
   };
 
   const notFound = useMemo(() => !loading && query.trim().length >= 3 && data.length === 0, [loading, query, data]);

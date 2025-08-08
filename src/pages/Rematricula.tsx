@@ -53,7 +53,7 @@ const Rematricula = () => {
                   onClick={() => {
                     setFlow("rematricula");
                     setSelectedStudent(s);
-                    navigate("/rematricula");
+                    navigate(`/rematricula/${s.id}`);
                   }}
                 >
                   Iniciar

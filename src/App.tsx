@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Rematricula from "./pages/Rematricula";
 import NovaMatricula from "./pages/NovaMatricula";
+import RematriculaAluno from "./pages/RematriculaAluno";
 import { EnrollmentProvider } from "./features/enrollment/context/EnrollmentContext";
 import IdentificacaoAluno from "./pages/Identificacao";
 
@@ -22,6 +23,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/identificacao" element={<IdentificacaoAluno />} />
+            <Route path="/rematricula/:id" element={<RematriculaAluno />} />
             <Route path="/rematricula" element={<Rematricula />} />
             <Route path="/nova-matricula" element={<NovaMatricula />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

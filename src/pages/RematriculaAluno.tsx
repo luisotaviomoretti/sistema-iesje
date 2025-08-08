@@ -1,0 +1,382 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
+import type { Desconto, Student, StatusDesconto } from "@/features/enrollment/types";
+import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
+import { mockDescontos, mockResponsaveis, mockStudents } from "@/data/mock";
+import { useToast } from "@/hooks/use-toast";
+
+const RematriculaAluno = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { selectedStudent, setSelectedStudent, setMatricula, descontos, addDesconto } = useEnrollment();
+
+  const aluno: Student | undefined = useMemo(() => {
+    if (selectedStudent && selectedStudent.id === id) return selectedStudent;
+    return mockStudents.find((s) => s.id === id);
+  }, [id, selectedStudent]);
+
+  useEffect(() => {
+    // SEO basics
+    const title = aluno ? `Rematrícula IESJE - ${aluno.nome_completo}` : "Rematrícula IESJE - Confirmação";
+    document.title = title;
+    const metaDesc = document.querySelector('meta[name="description"]') || document.createElement("meta");
+    metaDesc.setAttribute("name", "description");
+    metaDesc.setAttribute("content", "Confirmar e atualizar dados do aluno para rematrícula IESJE, incluindo descontos ativos.");
+    document.head.appendChild(metaDesc);
+    const canonical = document.querySelector('link[rel="canonical"]') || document.createElement("link");
+    canonical.setAttribute("rel", "canonical");
+    canonical.setAttribute("href", window.location.href);
+    document.head.appendChild(canonical);
+  }, [aluno]);
+
+  useEffect(() => {
+    if (aluno && (!selectedStudent || selectedStudent.id !== aluno.id)) {
+      setSelectedStudent(aluno);
+    }
+  }, [aluno, selectedStudent, setSelectedStudent]);
+
+  const [openPersonal, setOpenPersonal] = useState(false);
+  const [openAcademic, setOpenAcademic] = useState(false);
+  const [openDiscount, setOpenDiscount] = useState(false);
+
+  const personalSchema = z.object({
+    nome_social: z.string().optional(),
+    data_nascimento: z.string().optional(),
+    sexo: z.string().optional(),
+  });
+
+  const academicSchema = z.object({
+    serie_ano: z.string().min(1, "Informe a série/ano"),
+    turno: z.string().min(1, "Selecione o turno"),
+  });
+
+  const descontoSchema = z.object({
+    tipoId: z.string().min(1, "Escolha o tipo"),
+  });
+
+  const formPersonal = useForm<z.infer<typeof personalSchema>>({
+    resolver: zodResolver(personalSchema),
+    defaultValues: {
+      nome_social: aluno?.nome_social || "",
+      data_nascimento: aluno?.data_nascimento || "",
+      sexo: aluno?.sexo || "",
+    },
+  });
+
+  const formAcademic = useForm<z.infer<typeof academicSchema>>({
+    resolver: zodResolver(academicSchema),
+    defaultValues: { serie_ano: "", turno: "" },
+  });
+
+  const formDesconto = useForm<z.infer<typeof descontoSchema>>({
+    resolver: zodResolver(descontoSchema),
+    defaultValues: { tipoId: "" },
+  });
+
+  if (!aluno) {
+    return (
+      <main className="container py-12">
+        <Card>
+          <CardHeader>
+            <CardTitle>Aluno não encontrado</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between">
+            <p className="text-muted-foreground">Volte e selecione um aluno para continuar a rematrícula.</p>
+            <Button onClick={() => navigate("/identificacao")}>Voltar</Button>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  const descontosDoAluno: Desconto[] = useMemo(
+    () => [...(descontos as Desconto[]), ...mockDescontos.filter((d) => d.student_id === aluno.id)],
+    [descontos, aluno.id]
+  );
+
+  const responsaveis = useMemo(() => mockResponsaveis.filter((r) => r.student_id === aluno.id), [aluno.id]);
+
+  const handleSavePersonal = formPersonal.handleSubmit((values) => {
+    setSelectedStudent({ ...aluno, ...values });
+    toast({ title: "Dados pessoais atualizados" });
+    setOpenPersonal(false);
+  });
+
+  const handleSaveAcademic = formAcademic.handleSubmit((values) => {
+    setMatricula({ ...values });
+    toast({ title: "Dados acadêmicos atualizados" });
+    setOpenAcademic(false);
+  });
+
+  const handleSolicitarDesconto = formDesconto.handleSubmit(({ tipoId }) => {
+    const tipo = TIPOS_DESCONTO.find((t) => t.id === tipoId);
+    if (!tipo) return;
+    const novo: Partial<Desconto> = {
+      id: crypto.randomUUID(),
+      student_id: aluno.id,
+      tipo_desconto_id: tipo.id,
+      codigo_desconto: tipo.codigo,
+      percentual_aplicado: tipo.percentual_fixo ?? 0,
+      status_aprovacao: "SOLICITADO" as StatusDesconto,
+      data_solicitacao: new Date().toISOString(),
+    };
+    addDesconto(novo);
+    toast({ title: "Solicitação enviada", description: `${tipo.descricao}` });
+    setOpenDiscount(false);
+    formDesconto.reset();
+  });
+
+  return (
+    <main className="container py-8 space-y-8">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold">{aluno.nome_completo}</h1>
+          <p className="text-sm text-muted-foreground">CPF: {aluno.cpf}</p>
+        </div>
+        <Badge variant="secondary">REMATRÍCULA</Badge>
+      </header>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Dados Pessoais</CardTitle>
+            <Button size="sm" variant="secondary" onClick={() => setOpenPersonal(true)}>Editar</Button>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <div><span className="text-muted-foreground">Nome social: </span>{aluno.nome_social || "—"}</div>
+            <div><span className="text-muted-foreground">Data de nascimento: </span>{aluno.data_nascimento || "—"}</div>
+            <div><span className="text-muted-foreground">Sexo: </span>{aluno.sexo || "—"}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Acadêmicos</CardTitle>
+            <Button size="sm" variant="secondary" onClick={() => setOpenAcademic(true)}>Editar</Button>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <div><span className="text-muted-foreground">Série/Ano: </span>—</div>
+            <div><span className="text-muted-foreground">Turno: </span>—</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Responsáveis</CardTitle>
+            {/* Poderíamos adicionar edição futura aqui */}
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {responsaveis.length === 0 && <p className="text-muted-foreground">Nenhum responsável cadastrado.</p>}
+            {responsaveis.map((r) => (
+              <div key={r.id} className="rounded-md border p-3">
+                <div className="font-medium">{r.nome_completo}</div>
+                <div className="text-xs text-muted-foreground">CPF: {r.cpf} • Tipo: {r.tipo}</div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Descontos Ativos</CardTitle>
+            <Button size="sm" onClick={() => setOpenDiscount(true)}>Solicitar Novo Desconto</Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {descontosDoAluno.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhum desconto ativo para este aluno.</p>
+            )}
+            {descontosDoAluno.map((d) => {
+              const tipo = TIPOS_DESCONTO.find((t) => t.id === d.tipo_desconto_id || t.codigo === d.codigo_desconto);
+              const status = d.status_aprovacao;
+              return (
+                <div key={d.id} className="flex items-start justify-between rounded-lg border p-3">
+                  <div>
+                    <div className="font-medium">{tipo?.descricao || d.codigo_desconto}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Percentual: {d.percentual_aplicado}% • Solicitação: {new Date(d.data_solicitacao).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <Badge variant={status === "APROVADO" ? "default" : status === "REJEITADO" ? "destructive" : "secondary"}>{status}</Badge>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Modal Dados Pessoais */}
+      <Dialog open={openPersonal} onOpenChange={setOpenPersonal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar dados pessoais</DialogTitle>
+          </DialogHeader>
+          <Form {...formPersonal}>
+            <form onSubmit={handleSavePersonal} className="space-y-4">
+              <FormField
+                control={formPersonal.control}
+                name="nome_social"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome social</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Opcional" {...field} />
+                    </FormControl>
+                    <FormDescription>Como o aluno prefere ser chamado.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formPersonal.control}
+                name="data_nascimento"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Data de nascimento</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formPersonal.control}
+                name="sexo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sexo</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="M">Masculino</SelectItem>
+                        <SelectItem value="F">Feminino</SelectItem>
+                        <SelectItem value="O">Outro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="secondary" onClick={() => setOpenPersonal(false)}>Cancelar</Button>
+                <Button type="submit">Salvar</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Acadêmicos */}
+      <Dialog open={openAcademic} onOpenChange={setOpenAcademic}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar dados acadêmicos</DialogTitle>
+          </DialogHeader>
+          <Form {...formAcademic}>
+            <form onSubmit={handleSaveAcademic} className="space-y-4">
+              <FormField
+                control={formAcademic.control}
+                name="serie_ano"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Série/Ano</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: 6º ano" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formAcademic.control}
+                name="turno"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Turno</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Manhã">Manhã</SelectItem>
+                        <SelectItem value="Tarde">Tarde</SelectItem>
+                        <SelectItem value="Noite">Noite</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="secondary" onClick={() => setOpenAcademic(false)}>Cancelar</Button>
+                <Button type="submit">Salvar</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Solicitar Desconto */}
+      <Dialog open={openDiscount} onOpenChange={setOpenDiscount}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Solicitar novo desconto</DialogTitle>
+          </DialogHeader>
+          <Form {...formDesconto}>
+            <form onSubmit={handleSolicitarDesconto} className="space-y-4">
+              <FormField
+                control={formDesconto.control}
+                name="tipoId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de desconto</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {TIPOS_DESCONTO.filter((t) => t.ativo).map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.codigo} • {t.descricao}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>Será aplicada a regra de aprovação definida para o tipo selecionado.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="secondary" onClick={() => setOpenDiscount(false)}>Cancelar</Button>
+                <Button type="submit">Solicitar</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </main>
+  );
+};
+
+export default RematriculaAluno;
