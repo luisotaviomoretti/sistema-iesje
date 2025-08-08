@@ -11,13 +11,14 @@ import { DiscountSummary } from "@/features/enrollment/components/DiscountSummar
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
 import type { Desconto } from "@/features/enrollment/types";
+import { Trash2 } from "lucide-react";
 
 const schema = z.object({ tipoId: z.string().min(1, "Selecione um tipo") });
 
 interface Props { onPrev: () => void; onFinish: () => void; baseMensal: number; }
 
 const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
-  const { descontos, addDesconto, selectedStudent } = useEnrollment();
+  const { descontos, addDesconto, selectedStudent, removeDescontoById } = useEnrollment();
   const [local, setLocal] = useState<Desconto[]>(descontos as any);
 
   const form = useForm<{ tipoId: string }>({ resolver: zodResolver(schema), defaultValues: { tipoId: "" } });
@@ -40,6 +41,11 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
   });
 
   const canFinish = useMemo(() => baseMensal > 0, [baseMensal]);
+
+  const handleRemove = (d: Desconto) => {
+    setLocal((l) => l.filter((x) => x.id !== d.id));
+    removeDescontoById(d.id);
+  };
 
   return (
     <div className="space-y-6">
@@ -78,7 +84,19 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
         {local.length === 0 && <p className="text-sm text-muted-foreground">Nenhum desconto selecionado.</p>}
         <div className="space-y-3">
           {local.map((d) => (
-            <DiscountChecklist key={d.id} desconto={d} />
+            <div key={d.id} className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-2"
+                aria-label="Excluir desconto"
+                type="button"
+                onClick={() => handleRemove(d)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+              <DiscountChecklist desconto={d} />
+            </div>
           ))}
         </div>
       </section>

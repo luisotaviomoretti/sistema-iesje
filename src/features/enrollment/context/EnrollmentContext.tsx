@@ -15,6 +15,7 @@ interface EnrollmentActions {
   setMatricula: (m: Partial<Matricula>) => void;
   addDesconto: (d: Partial<Desconto>) => void;
   removeDesconto: (codigo: string) => void;
+  removeDescontoById: (id: string) => void;
   nextStep: () => void;
   prevStep: () => void;
   reset: () => void;
@@ -33,6 +34,7 @@ export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children
     setMatricula: (m) => setState((s) => ({ ...s, matricula: { ...s.matricula, ...m } })),
     addDesconto: (d) => setState((s) => ({ ...s, descontos: [...s.descontos, d] })),
     removeDesconto: (codigo) => setState((s) => ({ ...s, descontos: s.descontos.filter((x) => x.codigo_desconto !== codigo) })),
+    removeDescontoById: (id) => setState((s) => ({ ...s, descontos: s.descontos.filter((x) => x.id !== id) })),
     nextStep: () => setState((s) => ({ ...s, step: s.step + 1 })),
     prevStep: () => setState((s) => ({ ...s, step: Math.max(0, s.step - 1) })),
     reset: () => setState({ step: 0, descontos: [] }),
