@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 import Rematricula from "./pages/Rematricula";
 import NovaMatricula from "./pages/NovaMatricula";
 import { EnrollmentProvider } from "./features/enrollment/context/EnrollmentContext";
+import IdentificacaoAluno from "./pages/Identificacao";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/identificacao" element={<IdentificacaoAluno />} />
             <Route path="/rematricula" element={<Rematricula />} />
             <Route path="/nova-matricula" element={<NovaMatricula />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

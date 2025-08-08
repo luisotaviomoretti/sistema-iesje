@@ -14,6 +14,9 @@ const Index = () => {
 
         <div className="flex flex-wrap items-center justify-center gap-4">
           <Button asChild variant="hero">
+            <Link to="/identificacao">Identificar Aluno</Link>
+          </Button>
+          <Button asChild variant="outline">
             <Link to="/rematricula">Iniciar Rematrícula</Link>
           </Button>
           <Button asChild variant="outline">
