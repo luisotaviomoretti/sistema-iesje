@@ -53,6 +53,14 @@ All colors MUST be HSL.
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* IESJE Design Tokens */
+    --brand: 224 76% 48%;
+    --brand-2: 262 83% 58%;
+    --primary-glow: 224 76% 60%;
+    --gradient-primary: linear-gradient(135deg, hsl(var(--brand)), hsl(var(--brand-2)));
+    --shadow-elevated: 0 16px 40px -12px hsl(var(--brand) / 0.35);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
@@ -101,5 +109,21 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@layer utilities {
+  .bg-gradient-primary { background-image: var(--gradient-primary); background-size: 200% 200%; }
+  .shadow-elevated { box-shadow: var(--shadow-elevated); }
+  .transition-smooth { transition: var(--transition-smooth); }
+  .animate-gradient-slow { animation: gradient-shift 12s ease infinite; }
+  .hero-surface {
+    background: radial-gradient(600px circle at 50% 50%, hsl(var(--brand) / 0.08), transparent 60%);
   }
 }
