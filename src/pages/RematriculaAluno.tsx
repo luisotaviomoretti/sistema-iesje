@@ -15,12 +15,14 @@ import type { Desconto, Student, StatusDesconto } from "@/features/enrollment/ty
 import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
 import { mockDescontos, mockResponsaveis, mockStudents } from "@/data/mock";
 import { useToast } from "@/hooks/use-toast";
+import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
+import FinalConfirmation from "@/features/enrollment/components/FinalConfirmation";
 
 const RematriculaAluno = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { selectedStudent, setSelectedStudent, setMatricula, descontos, addDesconto } = useEnrollment();
+  const { selectedStudent, setSelectedStudent, setMatricula, descontos, addDesconto, matricula } = useEnrollment();
 
   const aluno: Student | undefined = useMemo(() => {
     if (selectedStudent && selectedStudent.id === id) return selectedStudent;
@@ -60,6 +62,7 @@ const RematriculaAluno = () => {
   const academicSchema = z.object({
     serie_ano: z.string().min(1, "Informe a série/ano"),
     turno: z.string().min(1, "Selecione o turno"),
+    valor_mensalidade_base: z.coerce.number().min(0, "Informe o valor base"),
   });
 
   const descontoSchema = z.object({
@@ -77,7 +80,7 @@ const RematriculaAluno = () => {
 
   const formAcademic = useForm<z.infer<typeof academicSchema>>({
     resolver: zodResolver(academicSchema),
-    defaultValues: { serie_ano: "", turno: "" },
+    defaultValues: { serie_ano: matricula?.serie_ano ?? "", turno: matricula?.turno ?? "", valor_mensalidade_base: matricula?.valor_mensalidade_base ?? 0 },
   });
 
   const formDesconto = useForm<z.infer<typeof descontoSchema>>({
@@ -167,8 +170,9 @@ const RematriculaAluno = () => {
             <Button size="sm" variant="secondary" onClick={() => setOpenAcademic(true)}>Editar</Button>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
-            <div><span className="text-muted-foreground">Série/Ano: </span>—</div>
-            <div><span className="text-muted-foreground">Turno: </span>—</div>
+            <div><span className="text-muted-foreground">Série/Ano: </span>{matricula?.serie_ano || "—"}</div>
+            <div><span className="text-muted-foreground">Turno: </span>{matricula?.turno || "—"}</div>
+            <div><span className="text-muted-foreground">Mensalidade Base: </span>{matricula?.valor_mensalidade_base ? `R$ ${Number(matricula.valor_mensalidade_base).toFixed(2)}` : "—"}</div>
           </CardContent>
         </Card>
 
@@ -205,7 +209,7 @@ const RematriculaAluno = () => {
                   <div>
                     <div className="font-medium">{tipo?.descricao || d.codigo_desconto}</div>
                     <div className="text-xs text-muted-foreground">
-                      Percentual: {d.percentual_aplicado}% • Solicitação: {new Date(d.data_solicitacao).toLocaleDateString()}
+                      Percentual: {d.percentual_aplicado}% • Solicitação: {new Date(d.data_solicitacao).toLocaleDateString()} • Validade: {d.data_vencimento ? new Date(d.data_vencimento).toLocaleDateString() : "—"}
                     </div>
                   </div>
                   <Badge variant={status === "APROVADO" ? "default" : status === "REJEITADO" ? "destructive" : "secondary"}>{status}</Badge>
@@ -214,6 +218,21 @@ const RematriculaAluno = () => {
             })}
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Checklists de Documentos</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {descontosDoAluno.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhum desconto para validar.</p>
+            )}
+            {descontosDoAluno.map((d) => (
+              <DiscountChecklist key={d.id} desconto={d} />
+            ))}
+          </CardContent>
+        </Card>
+
+        <FinalConfirmation />
       </section>
 
       {/* Modal Dados Pessoais */}
@@ -298,6 +317,19 @@ const RematriculaAluno = () => {
                     <FormLabel>Série/Ano</FormLabel>
                     <FormControl>
                       <Input placeholder="Ex: 6º ano" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formAcademic.control}
+                name="valor_mensalidade_base"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Valor mensalidade base (R$)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="Ex: 820.00" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
