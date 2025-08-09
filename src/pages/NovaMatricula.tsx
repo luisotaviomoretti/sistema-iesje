@@ -107,14 +107,6 @@ const NovaMatriculaPage = () => {
           {current === 1 && <StepResponsaveis onPrev={goPrev} onNext={goNext} />}
           {current === 2 && <StepAcademicos onPrev={goPrev} onNext={goNext} onSave={onSaveAcademics} />}
           {current === 3 && <StepDescontos onPrev={goPrev} onFinish={finish} baseMensal={baseMensal} />}
-          <div className="flex justify-between">
-            <Button variant="ghost" onClick={goPrev} disabled={current === 0}>Voltar</Button>
-            {current < steps.length - 1 ? (
-              <Button onClick={goNext}>Próximo</Button>
-            ) : (
-              <Button onClick={finish}>Concluir</Button>
-            )}
-          </div>
         </CardContent>
       </Card>
     </main>
