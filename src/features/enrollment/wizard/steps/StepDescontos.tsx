@@ -25,6 +25,8 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
   const form = useForm<{ tipoId: string }>({ resolver: zodResolver(schema), defaultValues: { tipoId: "" } });
   const { toast } = useToast();
   const watchedTipoId = form.watch("tipoId");
+  const selectedTipo = useMemo(() => TIPOS_DESCONTO.find((t) => t.id === watchedTipoId), [watchedTipoId]);
+  const isDuplicate = useMemo(() => !!(selectedTipo && local.some((d) => d.codigo_desconto === selectedTipo.codigo)), [selectedTipo, local]);
   const handleAdd = form.handleSubmit(({ tipoId }) => {
     const tipo = TIPOS_DESCONTO.find((t) => t.id === tipoId);
     if (!tipo) return;
@@ -34,6 +36,10 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
         description: "Você precisa selecionar um aluno para solicitar desconto.",
         variant: "destructive",
       });
+      return;
+    }
+    if (local.some((x) => x.codigo_desconto === tipo.codigo)) {
+      toast({ title: "Desconto já adicionado", description: `${tipo.codigo} • ${tipo.descricao}`, variant: "destructive" });
       return;
     }
     const d: Desconto = {
@@ -78,11 +84,14 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
                 </SelectContent>
               </Select>
               <FormDescription>Tipos aplicáveis exigem documentação conforme checklist.</FormDescription>
+              {isDuplicate && (
+                <p className="text-sm text-destructive">Este desconto já foi adicionado.</p>
+              )}
               <FormMessage />
             </FormItem>
           )} />
           <div className="sm:col-span-1 flex items-end">
-            <Button type="submit" className="w-full" disabled={!selectedStudent || !watchedTipoId}>Adicionar</Button>
+            <Button type="submit" className="w-full" disabled={!selectedStudent || !watchedTipoId || isDuplicate}>Adicionar</Button>
           </div>
         </form>
       </Form>
@@ -114,6 +123,11 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
 
       <section>
         <DiscountSummary baseMensal={baseMensal} descontos={local as any} />
+        {!canFinish && (
+          <p className="text-sm text-muted-foreground mt-2">
+            Informe o valor base da mensalidade no passo “Acadêmicos” para concluir.
+          </p>
+        )}
       </section>
 
       <div className="flex justify-between pt-2">

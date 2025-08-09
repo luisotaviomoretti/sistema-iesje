@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useState, useCallback } from "react";
 import type { Desconto, Matricula, Student } from "../types";
 
 interface EnrollmentState {
@@ -28,19 +28,57 @@ const EnrollmentContext = createContext<(EnrollmentState & EnrollmentActions) | 
 export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [state, setState] = useState<EnrollmentState>({ step: 0, descontos: [] });
 
-  const actions: EnrollmentActions = {
-    setFlow: (f) => setState((s) => ({ ...s, flow: f })),
-    setSelectedStudent: (selectedStudent) => setState((s) => ({ ...s, selectedStudent })),
-    setMatricula: (m) => setState((s) => ({ ...s, matricula: { ...s.matricula, ...m } })),
-    addDesconto: (d) => setState((s) => ({ ...s, descontos: [...s.descontos, d] })),
-    removeDesconto: (codigo) => setState((s) => ({ ...s, descontos: s.descontos.filter((x) => x.codigo_desconto !== codigo) })),
-    removeDescontoById: (id) => setState((s) => ({ ...s, descontos: s.descontos.filter((x) => x.id !== id) })),
-    nextStep: () => setState((s) => ({ ...s, step: s.step + 1 })),
-    prevStep: () => setState((s) => ({ ...s, step: Math.max(0, s.step - 1) })),
-    reset: () => setState({ step: 0, descontos: [] }),
-  };
+  const setFlow = useCallback<EnrollmentActions["setFlow"]>((f) => {
+    setState((s) => (s.flow === f ? s : { ...s, flow: f }));
+  }, []);
 
-  const value = useMemo(() => ({ ...state, ...actions }), [state]);
+  const setSelectedStudent = useCallback<EnrollmentActions["setSelectedStudent"]>((selectedStudent) => {
+    setState((s) => ({ ...s, selectedStudent }));
+  }, []);
+
+  const setMatricula = useCallback<EnrollmentActions["setMatricula"]>((m) => {
+    setState((s) => ({ ...s, matricula: { ...s.matricula, ...m } }));
+  }, []);
+
+  const addDesconto = useCallback<EnrollmentActions["addDesconto"]>((d) => {
+    setState((s) => ({ ...s, descontos: [...s.descontos, d] }));
+  }, []);
+
+  const removeDesconto = useCallback<EnrollmentActions["removeDesconto"]>((codigo) => {
+    setState((s) => ({ ...s, descontos: s.descontos.filter((x) => x.codigo_desconto !== codigo) }));
+  }, []);
+
+  const removeDescontoById = useCallback<EnrollmentActions["removeDescontoById"]>((id) => {
+    setState((s) => ({ ...s, descontos: s.descontos.filter((x) => x.id !== id) }));
+  }, []);
+
+  const nextStep = useCallback<EnrollmentActions["nextStep"]>(() => {
+    setState((s) => ({ ...s, step: s.step + 1 }));
+  }, []);
+
+  const prevStep = useCallback<EnrollmentActions["prevStep"]>(() => {
+    setState((s) => ({ ...s, step: Math.max(0, s.step - 1) }));
+  }, []);
+
+  const reset = useCallback<EnrollmentActions["reset"]>(() => {
+    setState({ step: 0, descontos: [] });
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      ...state,
+      setFlow,
+      setSelectedStudent,
+      setMatricula,
+      addDesconto,
+      removeDesconto,
+      removeDescontoById,
+      nextStep,
+      prevStep,
+      reset,
+    }),
+    [state, setFlow, setSelectedStudent, setMatricula, addDesconto, removeDesconto, removeDescontoById, nextStep, prevStep, reset]
+  );
   return <EnrollmentContext.Provider value={value}>{children}</EnrollmentContext.Provider>;
 };
 
