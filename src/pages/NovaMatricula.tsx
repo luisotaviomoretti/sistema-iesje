@@ -10,9 +10,11 @@ import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { useLocalDraft, clearDraft } from "@/features/enrollment/wizard/useLocalDraft";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useNavigate } from "react-router-dom";
 const steps = ["Dados do Aluno", "Responsáveis", "Acadêmicos", "Descontos"];
 
 const NovaMatriculaPage = () => {
+  const navigate = useNavigate();
   const { step, setFlow, nextStep, prevStep, setMatricula, matricula, selectedStudent, reset, setSelectedStudent } = useEnrollment();
   const [current, setCurrent] = useState(0);
   const { toast } = useToast();
@@ -67,8 +69,13 @@ const NovaMatriculaPage = () => {
     toast({ title: "Rascunho retomado", description: `Voltamos para a etapa ${stepTo + 1}.` });
   };
 
-  const finish = () => {
-    toast({ title: "Matrícula concluída (rascunho)", description: "Dados salvos localmente. Conecte ao Supabase para persistir." });
+const finish = () => {
+    toast({ title: "Matrícula concluída", description: "Redirecionando para a página inicial..." });
+    clearDraft("nova-matricula");
+    reset();
+    setSelectedStudent(null);
+    setCurrent(0);
+    navigate("/");
   };
   return (
     <main className="container py-8 space-y-8">
