@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { DiscountSummary } from "@/features/enrollment/components/DiscountSummary";
 import { calculateTotals } from "@/features/enrollment/utils/discounts";
+import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
+import { Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
 const FinalConfirmation: React.FC = () => {
   const { selectedStudent, matricula, descontos } = useEnrollment();
   const { toast } = useToast();
@@ -38,6 +39,14 @@ const FinalConfirmation: React.FC = () => {
         </div>
         <DiscountSummary baseMensal={baseMensal} descontos={descontosList as any} />
         <div className="flex flex-wrap gap-2 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => generateProposalPdf({ flow: "rematricula", student: selectedStudent as any, matricula: matricula as any, descontos: descontosList as any, baseMensal })}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download Proposta
+          </Button>
           <Button onClick={handleConfirm} disabled={disabled}>Confirmar Matrícula</Button>
           <Button onClick={handleDraft} variant="secondary">Salvar Rascunho</Button>
           <Button onClick={handleCancel} variant="ghost">Cancelar</Button>

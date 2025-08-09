@@ -11,15 +11,15 @@ import { DiscountSummary } from "@/features/enrollment/components/DiscountSummar
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
 import type { Desconto } from "@/features/enrollment/types";
-import { Trash2 } from "lucide-react";
+import { Trash2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
+import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
 const schema = z.object({ tipoId: z.string().min(1, "Selecione um tipo") });
 
 interface Props { onPrev: () => void; onFinish: () => void; baseMensal: number; }
 
 const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
-  const { descontos, addDesconto, selectedStudent, removeDescontoById } = useEnrollment();
+  const { descontos, addDesconto, selectedStudent, removeDescontoById, matricula } = useEnrollment();
   const [local, setLocal] = useState<Desconto[]>(descontos as any);
 
   const form = useForm<{ tipoId: string }>({ resolver: zodResolver(schema), defaultValues: { tipoId: "" } });
@@ -130,9 +130,20 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
         )}
       </section>
 
-      <div className="flex justify-between pt-2">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2">
         <Button variant="outline" onClick={onPrev}>Voltar</Button>
-        <Button onClick={onFinish} disabled={!canFinish}>Concluir</Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => generateProposalPdf({ flow: "nova", student: selectedStudent as any, matricula: matricula as any, descontos: local as any, baseMensal })}
+            disabled={!canFinish}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download Proposta
+          </Button>
+          <Button onClick={onFinish} disabled={!canFinish}>Concluir</Button>
+        </div>
       </div>
     </div>
   );
