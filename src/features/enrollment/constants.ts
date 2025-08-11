@@ -23,3 +23,32 @@ export const TIPOS_DESCONTO: TipoDesconto[] = [
   { id: "12", codigo: "ABP", descricao: "Bolsa Parcial Filantropia - 50%", percentual_fixo: 50, eh_variavel: false, documentos_necessarios: ["Processo de filantropia completo"], nivel_aprovacao_requerido: nivelPorPercentual(50), ativo: true },
   { id: "13", codigo: "PAV", descricao: "Pagamento à Vista - 15%", percentual_fixo: 15, eh_variavel: false, documentos_necessarios: ["Comprovante de pagamento integral"], nivel_aprovacao_requerido: nivelPorPercentual(15), ativo: true },
 ];
+
+// Séries/Ano pré-configuradas
+export const SERIES_ANO: string[] = [
+  "1º ano",
+  "2º ano",
+  "3º ano",
+  "4º ano",
+  "5º ano",
+  "6º ano",
+  "7º ano",
+  "8º ano",
+  "9º ano",
+  "1ª série EM",
+  "2ª série EM",
+  "3ª série EM",
+];
+
+// Sugestão automática da próxima série
+export function proximaSerie(serieAtual?: string): string | undefined {
+  if (!serieAtual) return undefined;
+  const idx = SERIES_ANO.findIndex((s) => normaliza(s) === normaliza(serieAtual));
+  if (idx === -1) return undefined;
+  return SERIES_ANO[idx + 1];
+}
+
+function normaliza(s: string) {
+  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+}
+

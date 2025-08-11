@@ -12,8 +12,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import type { Desconto, Student, StatusDesconto } from "@/features/enrollment/types";
-import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
-import { mockDescontos, mockResponsaveis, mockStudents } from "@/data/mock";
+import { TIPOS_DESCONTO, SERIES_ANO, proximaSerie } from "@/features/enrollment/constants";
+import { mockDescontos, mockResponsaveis, mockStudents, mockMatriculas } from "@/data/mock";
 import { useToast } from "@/hooks/use-toast";
 import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
 import FinalConfirmation from "@/features/enrollment/components/FinalConfirmation";
@@ -28,6 +28,15 @@ const RematriculaAluno = () => {
     if (selectedStudent && selectedStudent.id === id) return selectedStudent;
     return mockStudents.find((s) => s.id === id);
   }, [id, selectedStudent]);
+
+  const serieAtual = useMemo(() => {
+    if (!aluno) return undefined;
+    const mats = mockMatriculas.filter((m) => m.student_id === aluno.id);
+    if (mats.length === 0) return undefined;
+    return mats.sort((a, b) => b.ano_letivo - a.ano_letivo)[0].serie_ano;
+  }, [aluno]);
+
+  const sugestaoProximaSerie = useMemo(() => proximaSerie(serieAtual), [serieAtual]);
 
   useEffect(() => {
     // SEO basics
@@ -80,7 +89,7 @@ const RematriculaAluno = () => {
 
   const formAcademic = useForm<z.infer<typeof academicSchema>>({
     resolver: zodResolver(academicSchema),
-    defaultValues: { serie_ano: matricula?.serie_ano ?? "", turno: matricula?.turno ?? "", valor_mensalidade_base: matricula?.valor_mensalidade_base ?? 0 },
+    defaultValues: { serie_ano: matricula?.serie_ano ?? sugestaoProximaSerie ?? "", turno: matricula?.turno ?? "", valor_mensalidade_base: matricula?.valor_mensalidade_base ?? 0 },
   });
 
   const formDesconto = useForm<z.infer<typeof descontoSchema>>({
@@ -315,9 +324,22 @@ const RematriculaAluno = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Série/Ano</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ex: 6º ano" {...field} />
-                    </FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="z-50">
+                        {SERIES_ANO.map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {serieAtual ? `Atual: ${serieAtual}. ` : ""}
+                      {sugestaoProximaSerie ? `Sugerido: ${sugestaoProximaSerie}.` : ""}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

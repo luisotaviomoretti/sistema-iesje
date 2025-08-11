@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SERIES_ANO } from "@/features/enrollment/constants";
 
 const schema = z.object({
   serie_ano: z.string().min(1, "Informe a série/ano"),
@@ -60,9 +61,18 @@ const StepAcademicos: React.FC<Props> = ({ onNext, onPrev, onSave }) => {
           <FormField control={form.control} name="serie_ano" render={({ field }) => (
             <FormItem className="sm:col-span-1">
               <FormLabel>Série/Ano</FormLabel>
-              <FormControl>
-                <Input placeholder="Ex: 6º ano" {...field} />
-              </FormControl>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a série/ano" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent className="z-50">
+                  {SERIES_ANO.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )} />
