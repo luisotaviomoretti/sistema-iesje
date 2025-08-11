@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,7 +23,7 @@ const RematriculaAluno = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { selectedStudent, setSelectedStudent, setMatricula, descontos, addDesconto, matricula } = useEnrollment();
+  const { selectedStudent, setSelectedStudent, setMatricula, descontos, addDesconto, removeDesconto, matricula } = useEnrollment();
 
   const aluno: Student | undefined = useMemo(() => {
     if (selectedStudent && selectedStudent.id === id) return selectedStudent;
@@ -61,6 +62,12 @@ const RematriculaAluno = () => {
   const [openPersonal, setOpenPersonal] = useState(false);
   const [openAcademic, setOpenAcademic] = useState(false);
   const [openDiscount, setOpenDiscount] = useState(false);
+
+  // Comerciais (negociação)
+  const [cep, setCep] = useState("");
+  const [cepClass, setCepClass] = useState<"" | "fora" | "baixa" | "alta">("");
+  const [applyCep, setApplyCep] = useState(false);
+  const [adimplente, setAdimplente] = useState(false);
 
   const personalSchema = z.object({
     nome_social: z.string().optional(),
@@ -130,6 +137,13 @@ const RematriculaAluno = () => {
     [descontos, aluno.id]
   );
 
+  useEffect(() => {
+    const hasCEP = descontosDoAluno.some((d) => d.codigo_desconto === "CEP10" || d.codigo_desconto === "CEP5");
+    const hasADIM = descontosDoAluno.some((d) => d.codigo_desconto === "ADIM2");
+    setApplyCep(hasCEP);
+    setAdimplente(hasADIM);
+  }, [descontosDoAluno]);
+
   const responsaveis = useMemo(() => mockResponsaveis.filter((r) => r.student_id === aluno.id), [aluno.id]);
 
   const handleSavePersonal = formPersonal.handleSubmit((values) => {
@@ -143,6 +157,109 @@ const RematriculaAluno = () => {
     toast({ title: "Dados acadêmicos atualizados" });
     setOpenAcademic(false);
   });
+
+  // ==== Descontos Comerciais helpers ====
+  const findTipo = (codigo: string) => TIPOS_DESCONTO.find((t) => t.codigo === codigo);
+
+  const classifyCep = (raw: string): "" | "fora" | "baixa" | "alta" => {
+    const digits = (raw || "").replace(/\D/g, "");
+    if (digits.length < 8) return "";
+    const isPocos = digits.startsWith("377");
+    if (!isPocos) return "fora";
+    const baixaPrefixes = ["37712", "37713"]; // placeholder - substituir por base oficial
+    if (baixaPrefixes.some((p) => digits.startsWith(p))) return "baixa";
+    return "alta";
+  };
+
+  const addOrUpdateCepDiscount = (cls: "" | "fora" | "baixa" | "alta") => {
+    // remove anteriores
+    removeDesconto("CEP10");
+    removeDesconto("CEP5");
+    if (cls === "fora") {
+      const tipo = findTipo("CEP10");
+      if (tipo) {
+        addDesconto({
+          id: crypto.randomUUID(),
+          student_id: aluno.id,
+          tipo_desconto_id: tipo.id,
+          codigo_desconto: tipo.codigo,
+          percentual_aplicado: tipo.percentual_fixo ?? 10,
+          status_aprovacao: "SOLICITADO" as StatusDesconto,
+          data_solicitacao: new Date().toISOString(),
+        });
+      }
+    } else if (cls === "baixa") {
+      const tipo = findTipo("CEP5");
+      if (tipo) {
+        addDesconto({
+          id: crypto.randomUUID(),
+          student_id: aluno.id,
+          tipo_desconto_id: tipo.id,
+          codigo_desconto: tipo.codigo,
+          percentual_aplicado: tipo.percentual_fixo ?? 5,
+          status_aprovacao: "SOLICITADO" as StatusDesconto,
+          data_solicitacao: new Date().toISOString(),
+        });
+      }
+    }
+  };
+
+  const onVerifyCep = () => {
+    const cls = classifyCep(cep);
+    setCepClass(cls);
+    if (!cls) {
+      toast({ title: "CEP inválido", description: "Informe um CEP com 8 dígitos." });
+      return;
+    }
+    const msg =
+      cls === "fora"
+        ? "Fora de Poços de Caldas — elegível a 10%"
+        : cls === "baixa"
+        ? "Poços (bairro de menor renda) — elegível a 5%"
+        : "Poços (bairro de maior renda) — sem desconto por CEP";
+    toast({ title: "Verificação de CEP", description: msg });
+    if (applyCep) addOrUpdateCepDiscount(cls);
+  };
+
+  const onToggleCep = (checked: boolean) => {
+    setApplyCep(checked);
+    if (checked) {
+      if (!cepClass) {
+        toast({ title: "Verifique o CEP", description: "Confirme o CEP para aplicar o desconto por CEP." });
+        return;
+      }
+      addOrUpdateCepDiscount(cepClass);
+      toast({ title: "Desconto por CEP aplicado" });
+    } else {
+      removeDesconto("CEP10");
+      removeDesconto("CEP5");
+      toast({ title: "Desconto por CEP removido" });
+    }
+  };
+
+  const onToggleAdimplente = (checked: boolean) => {
+    setAdimplente(checked);
+    if (checked) {
+      // evita duplicar
+      removeDesconto("ADIM2");
+      const tipo = findTipo("ADIM2");
+      if (tipo) {
+        addDesconto({
+          id: crypto.randomUUID(),
+          student_id: aluno.id,
+          tipo_desconto_id: tipo.id,
+          codigo_desconto: tipo.codigo,
+          percentual_aplicado: tipo.percentual_fixo ?? 2,
+          status_aprovacao: "SOLICITADO" as StatusDesconto,
+          data_solicitacao: new Date().toISOString(),
+        });
+        toast({ title: "Adimplente perfeito aplicado (2%)" });
+      }
+    } else {
+      removeDesconto("ADIM2");
+      toast({ title: "Adimplente perfeito removido" });
+    }
+  };
 
   const handleSolicitarDesconto = formDesconto.handleSubmit(({ tipoId }) => {
     const tipo = TIPOS_DESCONTO.find((t) => t.id === tipoId);
@@ -237,6 +354,42 @@ const RematriculaAluno = () => {
                 </div>
               );
             })}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Descontos Comerciais</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <FormLabel>CEP do Aluno</FormLabel>
+              <div className="mt-1 flex gap-2">
+                <Input placeholder="00000-000" value={cep} onChange={(e) => setCep(e.target.value)} />
+                <Button type="button" variant="secondary" onClick={onVerifyCep}>Verificar CEP</Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {cepClass === "fora" && "Fora de Poços de Caldas — 10% elegível"}
+                {cepClass === "baixa" && "Poços (bairro menor renda) — 5% elegível"}
+                {cepClass === "alta" && "Poços (bairro maior renda) — sem desconto por CEP"}
+                {!cepClass && "Informe e verifique o CEP para checar o benefício."}
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex items-center gap-3">
+                <Switch checked={applyCep} onCheckedChange={onToggleCep} />
+                <div>
+                  <div className="text-sm font-medium">Aplicar desconto por CEP</div>
+                  <div className="text-xs text-muted-foreground">Necessita verificação do CEP</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Switch checked={adimplente} onCheckedChange={onToggleAdimplente} />
+                <div>
+                  <div className="text-sm font-medium">Adimplente perfeito (2%)</div>
+                  <div className="text-xs text-muted-foreground">Pagamentos sempre no vencimento</div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
         <Card>

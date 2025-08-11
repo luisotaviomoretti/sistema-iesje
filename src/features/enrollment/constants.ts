@@ -22,6 +22,10 @@ export const TIPOS_DESCONTO: TipoDesconto[] = [
   { id: "11", codigo: "ABI", descricao: "Bolsa Integral Filantropia - 100%", percentual_fixo: 100, eh_variavel: false, documentos_necessarios: ["Processo de filantropia completo"], nivel_aprovacao_requerido: "DIRECAO", ativo: true },
   { id: "12", codigo: "ABP", descricao: "Bolsa Parcial Filantropia - 50%", percentual_fixo: 50, eh_variavel: false, documentos_necessarios: ["Processo de filantropia completo"], nivel_aprovacao_requerido: nivelPorPercentual(50), ativo: true },
   { id: "13", codigo: "PAV", descricao: "Pagamento à Vista - 15%", percentual_fixo: 15, eh_variavel: false, documentos_necessarios: ["Comprovante de pagamento integral"], nivel_aprovacao_requerido: nivelPorPercentual(15), ativo: true },
+  // Comerciais (negociação)
+  { id: "C1", codigo: "CEP10", descricao: "Comercial — CEP fora de Poços de Caldas - 10%", percentual_fixo: 10, eh_variavel: false, documentos_necessarios: [], nivel_aprovacao_requerido: nivelPorPercentual(10), ativo: true },
+  { id: "C2", codigo: "CEP5", descricao: "Comercial — CEP em bairro de menor renda (Poços) - 5%", percentual_fixo: 5, eh_variavel: false, documentos_necessarios: [], nivel_aprovacao_requerido: nivelPorPercentual(5), ativo: true },
+  { id: "C3", codigo: "ADIM2", descricao: "Comercial — Adimplente perfeito - 2%", percentual_fixo: 2, eh_variavel: false, documentos_necessarios: [], nivel_aprovacao_requerido: "AUTOMATICA", ativo: true },
 ];
 
 // Séries/Ano pré-configuradas
