@@ -40,6 +40,27 @@ export const SERIES_ANO: string[] = [
   "3ª série EM",
 ];
 
+// Valores base por Série/Ano (pode ser ajustado conforme tabela oficial)
+export const VALOR_BASE_POR_SERIE: Record<string, number> = {
+  "1º ano": 700,
+  "2º ano": 800,
+  "3º ano": 900,
+  "4º ano": 1000,
+  "5º ano": 1100,
+  "6º ano": 1200,
+  "7º ano": 1300,
+  "8º ano": 1400,
+  "9º ano": 1500,
+  "1ª série EM": 1600,
+  "2ª série EM": 1700,
+  "3ª série EM": 1800,
+};
+
+export function valorBaseParaSerie(serie?: string): number | undefined {
+  if (!serie) return undefined;
+  return VALOR_BASE_POR_SERIE[serie];
+}
+
 // Sugestão automática da próxima série
 export function proximaSerie(serieAtual?: string): string | undefined {
   if (!serieAtual) return undefined;

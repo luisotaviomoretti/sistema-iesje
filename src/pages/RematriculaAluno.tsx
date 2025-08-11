@@ -12,7 +12,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import type { Desconto, Student, StatusDesconto } from "@/features/enrollment/types";
-import { TIPOS_DESCONTO, SERIES_ANO, proximaSerie } from "@/features/enrollment/constants";
+import { TIPOS_DESCONTO, SERIES_ANO, proximaSerie, valorBaseParaSerie } from "@/features/enrollment/constants";
 import { mockDescontos, mockResponsaveis, mockStudents, mockMatriculas } from "@/data/mock";
 import { useToast } from "@/hooks/use-toast";
 import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
@@ -91,6 +91,18 @@ const RematriculaAluno = () => {
     resolver: zodResolver(academicSchema),
     defaultValues: { serie_ano: matricula?.serie_ano ?? sugestaoProximaSerie ?? "", turno: matricula?.turno ?? "", valor_mensalidade_base: matricula?.valor_mensalidade_base ?? 0 },
   });
+
+  // Preenche automaticamente a mensalidade base ao abrir o modal, se houver série definida e valor zerado
+  useEffect(() => {
+    const s = formAcademic.getValues("serie_ano");
+    const baseAtual = Number(formAcademic.getValues("valor_mensalidade_base") || 0);
+    if (openAcademic && s && (!baseAtual || baseAtual === 0)) {
+      const base = valorBaseParaSerie(s);
+      if (typeof base === "number") {
+        formAcademic.setValue("valor_mensalidade_base", base, { shouldDirty: true, shouldValidate: true });
+      }
+    }
+  }, [openAcademic]);
 
   const formDesconto = useForm<z.infer<typeof descontoSchema>>({
     resolver: zodResolver(descontoSchema),
@@ -324,7 +336,13 @@ const RematriculaAluno = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Série/Ano</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select value={field.value} onValueChange={(val) => {
+                      field.onChange(val);
+                      const base = valorBaseParaSerie(val);
+                      if (typeof base === "number") {
+                        formAcademic.setValue("valor_mensalidade_base", base, { shouldDirty: true, shouldValidate: true });
+                      }
+                    }}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
