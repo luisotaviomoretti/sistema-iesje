@@ -9,13 +9,31 @@ import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
 import type { Desconto } from "@/features/enrollment/types";
 import { Download, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { mockResponsaveis } from "@/data/mock";
 
 const ResumoMatricula: React.FC = () => {
-  const { flow, selectedStudent, matricula, descontos, enderecoAluno } = useEnrollment();
+  const { flow, selectedStudent, matricula, descontos, enderecoAluno, responsaveis } = useEnrollment();
   const { toast } = useToast();
   const navigate = useNavigate();
   const params = useParams();
   const location = useLocation();
+
+  const respList = useMemo(() => {
+    if (flow === "rematricula") {
+      const sid = (params as any)?.id || selectedStudent?.id;
+      return mockResponsaveis
+        .filter((r) => r.student_id === sid)
+        .map((r) => ({ nome_completo: r.nome_completo, cpf: r.cpf, tipo: r.tipo }));
+    }
+    const list: Array<{ nome_completo: string; cpf: string; tipo: string }> = [];
+    if (responsaveis?.principal?.nome_completo || responsaveis?.principal?.cpf) {
+      list.push({ nome_completo: responsaveis?.principal?.nome_completo || "", cpf: responsaveis?.principal?.cpf || "", tipo: "principal" });
+    }
+    if (responsaveis?.secundario?.nome_completo || responsaveis?.secundario?.cpf) {
+      list.push({ nome_completo: responsaveis?.secundario?.nome_completo || "", cpf: responsaveis?.secundario?.cpf || "", tipo: "secundario" });
+    }
+    return list;
+  }, [flow, (params as any)?.id, selectedStudent?.id, responsaveis]);
 
   // SEO basics
   useEffect(() => {
@@ -44,6 +62,7 @@ const ResumoMatricula: React.FC = () => {
       matricula: matricula as any,
       descontos: descontosList as any,
       baseMensal,
+      responsaveis: respList as any,
     });
   };
 
@@ -85,6 +104,20 @@ const ResumoMatricula: React.FC = () => {
             <div><span className="text-muted-foreground">Série/Ano: </span>{matricula?.serie_ano || "—"}</div>
             <div><span className="text-muted-foreground">Turno: </span>{matricula?.turno || "—"}</div>
             <div><span className="text-muted-foreground">Mensalidade base: </span>{baseMensal > 0 ? `R$ ${baseMensal.toFixed(2)}` : "—"}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Responsáveis</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            {respList.length === 0 && <div className="text-muted-foreground">Nenhum responsável informado.</div>}
+            {respList.map((r, idx) => (
+              <div key={`${r.tipo}-${idx}`}>
+                <span className="text-muted-foreground capitalize">{r.tipo}:</span> {r.nome_completo || "—"} {r.cpf ? `• CPF: ${r.cpf}` : ""}
+              </div>
+            ))}
           </CardContent>
         </Card>
 

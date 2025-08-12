@@ -22,7 +22,7 @@ const schema = z.object({ tipoId: z.string().min(1, "Selecione um tipo") });
 interface Props { onPrev: () => void; onFinish: () => void; baseMensal: number; }
 
 const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
-  const { descontos, addDesconto, selectedStudent, removeDescontoById, matricula } = useEnrollment();
+  const { descontos, addDesconto, selectedStudent, removeDescontoById, matricula, responsaveis } = useEnrollment();
   const [local, setLocal] = useState<Desconto[]>(descontos as any);
 
   const form = useForm<{ tipoId: string }>({ resolver: zodResolver(schema), defaultValues: { tipoId: "" } });

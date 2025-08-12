@@ -6,7 +6,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
-import type { Responsavel } from "@/features/enrollment/types";
+
 
 const respSchema = z.object({
   nome_completo: z.string().min(3, "Informe o nome do responsável"),
@@ -25,17 +25,17 @@ export type StepRespValues = {
 interface Props { onNext: () => void; onPrev: () => void; }
 
 const StepResponsaveis: React.FC<Props> = ({ onNext, onPrev }) => {
-  const { selectedStudent } = useEnrollment();
+  const { responsaveis, setResponsaveis } = useEnrollment();
   const form = useForm<StepRespValues>({
     resolver: zodResolver(z.object({ principal: respSchema, secundario: respOptionalSchema.optional() })),
     defaultValues: {
-      principal: { nome_completo: "", cpf: "", telefone_principal: "", email: "" },
-      secundario: { nome_completo: "", cpf: "", telefone_principal: "", email: "" },
+      principal: { nome_completo: responsaveis?.principal?.nome_completo || "", cpf: responsaveis?.principal?.cpf || "", telefone_principal: responsaveis?.principal?.telefone_principal || "", email: responsaveis?.principal?.email || "" },
+      secundario: { nome_completo: responsaveis?.secundario?.nome_completo || "", cpf: responsaveis?.secundario?.cpf || "", telefone_principal: responsaveis?.secundario?.telefone_principal || "", email: responsaveis?.secundario?.email || "" },
     },
     mode: "onChange",
   });
 
-  const onSubmit = form.handleSubmit(() => onNext());
+  const onSubmit = form.handleSubmit((values) => { setResponsaveis(values as any); onNext(); });
 
   return (
     <Form {...form}>

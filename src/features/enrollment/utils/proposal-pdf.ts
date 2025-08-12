@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Student, Matricula, Desconto } from "../types";
+import type { Student, Matricula, Desconto, Responsavel } from "../types";
 import { TIPOS_DESCONTO } from "../constants";
 import { calculateTotals } from "./discounts";
 
@@ -40,8 +40,9 @@ export function generateProposalPdf(params: {
   matricula?: Partial<Matricula> | null;
   descontos: (Desconto | Partial<Desconto>)[];
   baseMensal?: number;
+  responsaveis?: Array<Pick<Responsavel, "nome_completo" | "cpf" | "tipo">>;
 }) {
-  const { flow, student, matricula, descontos, baseMensal } = params;
+  const { flow, student, matricula, descontos, baseMensal, responsaveis } = params;
   const base = Number(baseMensal ?? matricula?.valor_mensalidade_base ?? 0);
   const descontoItems = normalizeDescontos(descontos);
   const summary = calculateTotals(base, (descontos as any) as Desconto[]);
@@ -69,6 +70,24 @@ export function generateProposalPdf(params: {
   doc.text(`Nome: ${student?.nome_completo ?? "—"}`, 40, y);
   y += 16;
   doc.text(`CPF: ${student?.cpf ?? "—"}`, 40, y);
+
+  // Responsáveis
+  y += 26;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Responsáveis", 40, y);
+  y += 18;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  if (responsaveis && responsaveis.length > 0) {
+    for (const r of responsaveis) {
+      doc.text(`${r.tipo ? r.tipo + ": " : ""}${r.nome_completo || "—"} — CPF: ${r.cpf || "—"}`, 40, y);
+      y += 16;
+    }
+  } else {
+    doc.text("—", 40, y);
+    y += 16;
+  }
 
   // Acadêmicos
   y += 26;

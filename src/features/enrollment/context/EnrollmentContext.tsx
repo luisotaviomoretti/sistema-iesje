@@ -16,6 +16,20 @@ interface EnrollmentState {
     uf?: string;
   };
   descontos: Partial<Desconto>[];
+  responsaveis?: {
+    principal?: {
+      nome_completo?: string;
+      cpf?: string;
+      telefone_principal?: string;
+      email?: string;
+    };
+    secundario?: {
+      nome_completo?: string;
+      cpf?: string;
+      telefone_principal?: string;
+      email?: string;
+    };
+  };
 }
 
 interface EnrollmentActions {
@@ -23,6 +37,7 @@ interface EnrollmentActions {
   setSelectedStudent: (s: Student | null) => void;
   setMatricula: (m: Partial<Matricula>) => void;
   setEnderecoAluno: (e: NonNullable<EnrollmentState["enderecoAluno"]>) => void;
+  setResponsaveis: (r: NonNullable<EnrollmentState["responsaveis"]>) => void;
   addDesconto: (d: Partial<Desconto>) => void;
   removeDesconto: (codigo: string) => void;
   removeDescontoById: (id: string) => void;
@@ -50,9 +65,13 @@ export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children
     setState((s) => ({ ...s, matricula: { ...s.matricula, ...m } }));
   }, []);
 
-  const setEnderecoAluno = useCallback<EnrollmentActions["setEnderecoAluno"]>((e) => {
-    setState((s) => ({ ...s, enderecoAluno: { ...s.enderecoAluno, ...e } }));
-  }, []);
+const setEnderecoAluno = useCallback<EnrollmentActions["setEnderecoAluno"]>((e) => {
+  setState((s) => ({ ...s, enderecoAluno: { ...s.enderecoAluno, ...e } }));
+}, []);
+
+const setResponsaveis = useCallback<EnrollmentActions["setResponsaveis"]>((r) => {
+  setState((s) => ({ ...s, responsaveis: { ...s.responsaveis, ...r } }));
+}, []);
 
   const addDesconto = useCallback<EnrollmentActions["addDesconto"]>((d) => {
     setState((s) => ({ ...s, descontos: [...s.descontos, d] }));
@@ -85,6 +104,7 @@ export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children
       setSelectedStudent,
       setMatricula,
       setEnderecoAluno,
+      setResponsaveis,
       addDesconto,
       removeDesconto,
       removeDescontoById,
@@ -92,7 +112,7 @@ export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children
       prevStep,
       reset,
     }),
-    [state, setFlow, setSelectedStudent, setMatricula, setEnderecoAluno, addDesconto, removeDesconto, removeDescontoById, nextStep, prevStep, reset]
+    [state, setFlow, setSelectedStudent, setMatricula, setEnderecoAluno, setResponsaveis, addDesconto, removeDesconto, removeDescontoById, nextStep, prevStep, reset]
   );
   return <EnrollmentContext.Provider value={value}>{children}</EnrollmentContext.Provider>;
 };
