@@ -70,10 +70,33 @@ const RematriculaAluno = () => {
   const [applyCep, setApplyCep] = useState(false);
   const [adimplente, setAdimplente] = useState(false);
 
+  // Endereço do aluno
+  const [openEndereco, setOpenEndereco] = useState(false);
+  type EnderecoData = {
+    cep?: string;
+    logradouro?: string;
+    numero?: string;
+    complemento?: string;
+    bairro?: string;
+    cidade?: string;
+    uf?: string;
+  };
+  const [endereco, setEndereco] = useState<EnderecoData | null>(null);
+
   const personalSchema = z.object({
     nome_social: z.string().optional(),
     data_nascimento: z.string().optional(),
     sexo: z.string().optional(),
+  });
+
+  const enderecoSchema = z.object({
+    cep: z.string().min(8, "Informe o CEP"),
+    logradouro: z.string().min(1, "Informe a rua/avenida"),
+    numero: z.string().min(1, "Informe o número"),
+    complemento: z.string().optional(),
+    bairro: z.string().min(1, "Informe o bairro"),
+    cidade: z.string().min(1, "Informe a cidade"),
+    uf: z.string().min(2, "UF inválida").max(2, "UF inválida"),
   });
 
   const academicSchema = z.object({
@@ -92,6 +115,19 @@ const RematriculaAluno = () => {
       nome_social: aluno?.nome_social || "",
       data_nascimento: aluno?.data_nascimento || "",
       sexo: aluno?.sexo || "",
+    },
+  });
+
+  const formEndereco = useForm<z.infer<typeof enderecoSchema>>({
+    resolver: zodResolver(enderecoSchema),
+    defaultValues: {
+      cep: "",
+      logradouro: "",
+      numero: "",
+      complemento: "",
+      bairro: "",
+      cidade: "Poços de Caldas",
+      uf: "MG",
     },
   });
 
@@ -151,6 +187,27 @@ const RematriculaAluno = () => {
     setSelectedStudent({ ...aluno, ...values });
     toast({ title: "Dados pessoais atualizados" });
     setOpenPersonal(false);
+  });
+
+  const handleSaveEndereco = formEndereco.handleSubmit((values) => {
+    setEndereco(values);
+    setOpenEndereco(false);
+    const novoCep = values.cep || "";
+    setCep(novoCep);
+    const cls = classifyCep(novoCep);
+    setCepClass(cls);
+    if (applyCep) {
+      addOrUpdateCepDiscount(cls);
+    }
+    const msg =
+      cls === "fora"
+        ? "Fora de Poços de Caldas — elegível a 10%"
+        : cls === "baixa"
+        ? "Poços (bairro de menor renda) — elegível a 5%"
+        : cls === "alta"
+        ? "Poços (bairro de maior renda) — sem desconto por CEP"
+        : "CEP inválido";
+    toast({ title: "Endereço atualizado", description: msg });
   });
 
   const handleSaveAcademic = formAcademic.handleSubmit((values) => {
@@ -300,6 +357,19 @@ const RematriculaAluno = () => {
             <div><span className="text-muted-foreground">Nome social: </span>{aluno.nome_social || "—"}</div>
             <div><span className="text-muted-foreground">Data de nascimento: </span>{aluno.data_nascimento || "—"}</div>
             <div><span className="text-muted-foreground">Sexo: </span>{aluno.sexo || "—"}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Endereço do Aluno</CardTitle>
+            <Button size="sm" variant="secondary" onClick={() => setOpenEndereco(true)}>Editar</Button>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <div><span className="text-muted-foreground">CEP: </span>{endereco?.cep || "—"}</div>
+            <div><span className="text-muted-foreground">Logradouro: </span>{endereco?.logradouro || "—"}{endereco?.numero ? `, ${endereco.numero}` : ""}</div>
+            <div><span className="text-muted-foreground">Bairro: </span>{endereco?.bairro || "—"}</div>
+            <div><span className="text-muted-foreground">Cidade/UF: </span>{endereco ? `${endereco.cidade} - ${endereco.uf}` : "—"}</div>
           </CardContent>
         </Card>
 
@@ -469,6 +539,88 @@ const RematriculaAluno = () => {
               />
               <DialogFooter>
                 <Button type="button" variant="secondary" onClick={() => setOpenPersonal(false)}>Cancelar</Button>
+                <Button type="submit">Salvar</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Endereço */}
+      <Dialog open={openEndereco} onOpenChange={setOpenEndereco}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar endereço do aluno</DialogTitle>
+          </DialogHeader>
+          <Form {...formEndereco}>
+            <form onSubmit={handleSaveEndereco} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField control={formEndereco.control} name="cep" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CEP</FormLabel>
+                    <FormControl>
+                      <Input placeholder="00000-000" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={formEndereco.control} name="bairro" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bairro</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Bairro" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={formEndereco.control} name="logradouro" render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Logradouro</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Rua/Avenida" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={formEndereco.control} name="numero" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Número</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nº" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={formEndereco.control} name="complemento" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Complemento</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Apto, bloco, etc." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={formEndereco.control} name="cidade" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cidade</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Cidade" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={formEndereco.control} name="uf" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>UF</FormLabel>
+                    <FormControl>
+                      <Input placeholder="UF" maxLength={2} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="secondary" onClick={() => setOpenEndereco(false)}>Cancelar</Button>
                 <Button type="submit">Salvar</Button>
               </DialogFooter>
             </form>
