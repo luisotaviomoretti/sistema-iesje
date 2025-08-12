@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -69,6 +70,8 @@ const RematriculaAluno = () => {
   const [cepClass, setCepClass] = useState<"" | "fora" | "baixa" | "alta">("");
   const [applyCep, setApplyCep] = useState(false);
   const [adimplente, setAdimplente] = useState(false);
+  const [comExtraPercent, setComExtraPercent] = useState<number>(0);
+  const [comExtraMotivo, setComExtraMotivo] = useState<string>("");
 
   // Endereço do aluno
   const [openEndereco, setOpenEndereco] = useState(false);
@@ -179,6 +182,14 @@ const RematriculaAluno = () => {
     const hasADIM = descontosDoAluno.some((d) => d.codigo_desconto === "ADIM2");
     setApplyCep(hasCEP);
     setAdimplente(hasADIM);
+  }, [descontosDoAluno]);
+
+  useEffect(() => {
+    const cx = descontosDoAluno.find((d) => d.codigo_desconto === "COM_EXTRA");
+    if (cx) {
+      setComExtraPercent(cx.percentual_aplicado || 0);
+      setComExtraMotivo(cx.observacoes || "");
+    }
   }, [descontosDoAluno]);
 
   const responsaveis = useMemo(() => mockResponsaveis.filter((r) => r.student_id === aluno.id), [aluno.id]);
@@ -316,6 +327,34 @@ const RematriculaAluno = () => {
     } else {
       removeDesconto("ADIM2");
       toast({ title: "Adimplente perfeito removido" });
+    }
+  };
+
+  const onApplyComExtra = () => {
+    const pct = Number(comExtraPercent || 0);
+    if (isNaN(pct) || pct <= 0 || pct > 20) {
+      toast({ title: "Percentual inválido", description: "Informe um percentual entre 0 e 20%.", variant: "destructive" });
+      return;
+    }
+    if (!comExtraMotivo?.trim()) {
+      toast({ title: "Informe o motivo", description: "Descreva o motivo do desconto adicional.", variant: "destructive" });
+      return;
+    }
+    // remove anterior
+    removeDesconto("COM_EXTRA");
+    const tipo = findTipo("COM_EXTRA");
+    if (tipo && aluno) {
+      addDesconto({
+        id: crypto.randomUUID(),
+        student_id: aluno.id,
+        tipo_desconto_id: tipo.id,
+        codigo_desconto: tipo.codigo,
+        percentual_aplicado: pct,
+        status_aprovacao: "SOLICITADO" as StatusDesconto,
+        data_solicitacao: new Date().toISOString(),
+        observacoes: comExtraMotivo.trim(),
+      });
+      toast({ title: "Desconto comercial extra aplicado", description: "A Diretoria Administrativa avaliará de forma mais contundente este desconto." });
     }
   };
 
@@ -459,6 +498,26 @@ const RematriculaAluno = () => {
                   <div className="text-sm font-medium">Adimplente perfeito (2%)</div>
                   <div className="text-xs text-muted-foreground">Pagamentos sempre no vencimento</div>
                 </div>
+              </div>
+            </div>
+            <div className="h-px bg-border" />
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Desconto comercial extra (negociação)</div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div>
+                  <Label htmlFor="comextra">Percentual (%)</Label>
+                  <Input id="comextra" type="number" min={0} max={20} step={1} value={comExtraPercent} onChange={(e) => setComExtraPercent(Number(e.target.value))} />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label htmlFor="motivo">Motivo do desconto</Label>
+                  <Textarea id="motivo" rows={2} placeholder="Descreva o motivo da negociação" value={comExtraMotivo} onChange={(e) => setComExtraMotivo(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">Ao aplicar, a Diretoria Administrativa avaliará de forma mais contundente o desconto.</p>
+                <Button type="button" onClick={onApplyComExtra}>
+                  Aplicar/Atualizar
+                </Button>
               </div>
             </div>
           </CardContent>

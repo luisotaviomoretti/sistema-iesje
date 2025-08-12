@@ -26,6 +26,7 @@ export const TIPOS_DESCONTO: TipoDesconto[] = [
   { id: "C1", codigo: "CEP10", descricao: "Comercial — CEP fora de Poços de Caldas - 10%", percentual_fixo: 10, eh_variavel: false, documentos_necessarios: [], nivel_aprovacao_requerido: nivelPorPercentual(10), ativo: true },
   { id: "C2", codigo: "CEP5", descricao: "Comercial — CEP em bairro de menor renda (Poços) - 5%", percentual_fixo: 5, eh_variavel: false, documentos_necessarios: [], nivel_aprovacao_requerido: nivelPorPercentual(5), ativo: true },
   { id: "C3", codigo: "ADIM2", descricao: "Comercial — Adimplente perfeito - 2%", percentual_fixo: 2, eh_variavel: false, documentos_necessarios: [], nivel_aprovacao_requerido: "AUTOMATICA", ativo: true },
+  { id: "C4", codigo: "COM_EXTRA", descricao: "Comercial — Extra (negociação) até 20%", eh_variavel: true, documentos_necessarios: [], nivel_aprovacao_requerido: "DIRECAO", ativo: true },
 ];
 
 // Séries/Ano pré-configuradas

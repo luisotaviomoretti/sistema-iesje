@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,6 +6,9 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
 import { DiscountSummary } from "@/features/enrollment/components/DiscountSummary";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
@@ -59,9 +62,51 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
 
   const canFinish = useMemo(() => baseMensal > 0, [baseMensal]);
 
+  const comExtra = useMemo(() => local.find((d) => d.codigo_desconto === "COM_EXTRA"), [local]);
+  const [comExtraPct, setComExtraPct] = useState<number>(0);
+  const [comExtraMotivo, setComExtraMotivo] = useState<string>("");
+
+  useEffect(() => {
+    if (comExtra) {
+      setComExtraPct(comExtra.percentual_aplicado || 0);
+      setComExtraMotivo(comExtra.observacoes || "");
+    }
+  }, [comExtra?.id]);
+
   const handleRemove = (d: Desconto) => {
     setLocal((l) => l.filter((x) => x.id !== d.id));
     removeDescontoById(d.id);
+  };
+
+  const handleApplyComExtra = () => {
+    const pct = Number(comExtraPct || 0);
+    if (isNaN(pct) || pct <= 0 || pct > 20) {
+      toast({ title: "Percentual inválido", description: "Informe um percentual entre 0 e 20%.", variant: "destructive" });
+      return;
+    }
+    if (!comExtraMotivo?.trim()) {
+      toast({ title: "Informe o motivo", description: "Descreva o motivo do desconto adicional.", variant: "destructive" });
+      return;
+    }
+    const tipo = TIPOS_DESCONTO.find((t) => t.codigo === "COM_EXTRA");
+    if (!tipo || !selectedStudent) return;
+    if (comExtra) {
+      // remove existente primeiro
+      handleRemove(comExtra);
+    }
+    const d: Desconto = {
+      id: crypto.randomUUID(),
+      student_id: selectedStudent.id,
+      tipo_desconto_id: tipo.id,
+      codigo_desconto: tipo.codigo,
+      percentual_aplicado: pct,
+      status_aprovacao: "SOLICITADO",
+      data_solicitacao: new Date().toISOString(),
+      observacoes: comExtraMotivo.trim(),
+    } as any;
+    addDesconto(d);
+    setLocal((l) => [...l, d]);
+    toast({ title: "Desconto comercial extra aplicado", description: "A Diretoria Administrativa avaliará de forma mais contundente este desconto." });
   };
 
   return (
@@ -118,6 +163,24 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
               <DiscountChecklist desconto={d} />
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="font-semibold">Desconto comercial extra (negociação)</h3>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div>
+            <Label htmlFor="pct-extra">Percentual (%)</Label>
+            <Input id="pct-extra" type="number" min={0} max={20} step={1} value={comExtraPct} onChange={(e) => setComExtraPct(Number(e.target.value))} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="motivo-extra">Motivo do desconto</Label>
+            <Textarea id="motivo-extra" rows={2} placeholder="Descreva o motivo da negociação" value={comExtraMotivo} onChange={(e) => setComExtraMotivo(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">Ao aplicar, a Diretoria Administrativa avaliará de forma mais contundente o desconto.</p>
+          <Button type="button" onClick={handleApplyComExtra} disabled={!selectedStudent}>Aplicar/Atualizar</Button>
         </div>
       </section>
 
