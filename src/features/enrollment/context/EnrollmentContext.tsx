@@ -6,6 +6,15 @@ interface EnrollmentState {
   step: number;
   selectedStudent?: Student | null;
   matricula?: Partial<Matricula>;
+  enderecoAluno?: {
+    cep?: string;
+    logradouro?: string;
+    numero?: string;
+    complemento?: string;
+    bairro?: string;
+    cidade?: string;
+    uf?: string;
+  };
   descontos: Partial<Desconto>[];
 }
 
@@ -13,6 +22,7 @@ interface EnrollmentActions {
   setFlow: (f: EnrollmentState["flow"]) => void;
   setSelectedStudent: (s: Student | null) => void;
   setMatricula: (m: Partial<Matricula>) => void;
+  setEnderecoAluno: (e: NonNullable<EnrollmentState["enderecoAluno"]>) => void;
   addDesconto: (d: Partial<Desconto>) => void;
   removeDesconto: (codigo: string) => void;
   removeDescontoById: (id: string) => void;
@@ -38,6 +48,10 @@ export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const setMatricula = useCallback<EnrollmentActions["setMatricula"]>((m) => {
     setState((s) => ({ ...s, matricula: { ...s.matricula, ...m } }));
+  }, []);
+
+  const setEnderecoAluno = useCallback<EnrollmentActions["setEnderecoAluno"]>((e) => {
+    setState((s) => ({ ...s, enderecoAluno: { ...s.enderecoAluno, ...e } }));
   }, []);
 
   const addDesconto = useCallback<EnrollmentActions["addDesconto"]>((d) => {
@@ -70,6 +84,7 @@ export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children
       setFlow,
       setSelectedStudent,
       setMatricula,
+      setEnderecoAluno,
       addDesconto,
       removeDesconto,
       removeDescontoById,
@@ -77,7 +92,7 @@ export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children
       prevStep,
       reset,
     }),
-    [state, setFlow, setSelectedStudent, setMatricula, addDesconto, removeDesconto, removeDescontoById, nextStep, prevStep, reset]
+    [state, setFlow, setSelectedStudent, setMatricula, setEnderecoAluno, addDesconto, removeDesconto, removeDescontoById, nextStep, prevStep, reset]
   );
   return <EnrollmentContext.Provider value={value}>{children}</EnrollmentContext.Provider>;
 };

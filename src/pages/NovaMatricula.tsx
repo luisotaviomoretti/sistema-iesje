@@ -6,16 +6,17 @@ import StepAluno from "@/features/enrollment/wizard/steps/StepAluno";
 import StepResponsaveis from "@/features/enrollment/wizard/steps/StepResponsaveis";
 import StepAcademicos from "@/features/enrollment/wizard/steps/StepAcademicos";
 import StepDescontos from "@/features/enrollment/wizard/steps/StepDescontos";
+import StepEndereco from "@/features/enrollment/wizard/steps/StepEndereco";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { useLocalDraft, clearDraft } from "@/features/enrollment/wizard/useLocalDraft";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
-const steps = ["Dados do Aluno", "Responsáveis", "Acadêmicos", "Descontos"];
+const steps = ["Dados do Aluno", "Responsáveis", "Endereço do Aluno", "Acadêmicos", "Descontos"];
 
 const NovaMatriculaPage = () => {
   const navigate = useNavigate();
-  const { step, setFlow, nextStep, prevStep, setMatricula, matricula, selectedStudent, reset, setSelectedStudent } = useEnrollment();
+  const { step, setFlow, nextStep, prevStep, setMatricula, matricula, selectedStudent, reset, setSelectedStudent, setEnderecoAluno, enderecoAluno } = useEnrollment();
   const [current, setCurrent] = useState(0);
   const { toast } = useToast();
   const [resumeOpen, setResumeOpen] = useState(false);
@@ -36,7 +37,7 @@ const NovaMatriculaPage = () => {
 
   useEffect(() => setFlow("nova"), [setFlow]);
 
-  const draftData = useMemo(() => ({ step: current, matricula, selectedStudent }), [current, matricula, selectedStudent]);
+  const draftData = useMemo(() => ({ step: current, matricula, selectedStudent, enderecoAluno }), [current, matricula, selectedStudent, enderecoAluno]);
   useLocalDraft("nova-matricula", draftData, (loaded) => {
     if (loaded && (typeof (loaded as any).step === "number" || (loaded as any).matricula || (loaded as any).selectedStudent)) {
       setResumeData(loaded);
@@ -64,6 +65,7 @@ const NovaMatriculaPage = () => {
     const stepTo = Math.min(steps.length - 1, Math.max(0, Number(resumeData?.step ?? 0)));
     if (resumeData?.selectedStudent) setSelectedStudent(resumeData.selectedStudent as any);
     if (resumeData?.matricula) setMatricula(resumeData.matricula as any);
+    if (resumeData?.enderecoAluno) setEnderecoAluno(resumeData.enderecoAluno as any);
     setCurrent(stepTo);
     setResumeOpen(false);
     toast({ title: "Rascunho retomado", description: `Voltamos para a etapa ${stepTo + 1}.` });
@@ -112,8 +114,9 @@ const finish = () => {
         <CardContent className="space-y-6">
           {current === 0 && <StepAluno onNext={goNext} />}
           {current === 1 && <StepResponsaveis onPrev={goPrev} onNext={goNext} />}
-          {current === 2 && <StepAcademicos onPrev={goPrev} onNext={goNext} onSave={onSaveAcademics} />}
-          {current === 3 && <StepDescontos onPrev={goPrev} onFinish={finish} baseMensal={baseMensal} />}
+          {current === 2 && <StepEndereco onPrev={goPrev} onNext={goNext} />}
+          {current === 3 && <StepAcademicos onPrev={goPrev} onNext={goNext} onSave={onSaveAcademics} />}
+          {current === 4 && <StepDescontos onPrev={goPrev} onFinish={finish} baseMensal={baseMensal} />}
         </CardContent>
       </Card>
     </main>
