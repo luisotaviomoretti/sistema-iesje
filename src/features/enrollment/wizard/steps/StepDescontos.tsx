@@ -12,12 +12,14 @@ import { Label } from "@/components/ui/label";
 import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
 import { DiscountSummary } from "@/features/enrollment/components/DiscountSummary";
 import CepInfo from "@/features/enrollment/components/CepInfo";
+import { Switch } from "@/components/ui/switch";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
 import type { Desconto } from "@/features/enrollment/types";
 import { Trash2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
+import { classifyCep, describeCepClass } from "@/features/enrollment/utils/cep";
 const schema = z.object({ tipoId: z.string().min(1, "Selecione um tipo") });
 
 interface Props { onPrev: () => void; onFinish: () => void; baseMensal: number; }
@@ -110,6 +112,59 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
     toast({ title: "Desconto comercial extra aplicado", description: "A Diretoria Administrativa avaliará de forma mais contundente este desconto." });
   };
 
+  // === Desconto por CEP (toggle) ===
+  const cepClass = useMemo(() => classifyCep(enderecoAluno?.cep), [enderecoAluno?.cep]);
+  const hasCepDiscount = useMemo(
+    () => local.some((d) => d.codigo_desconto === "CEP10" || d.codigo_desconto === "CEP5"),
+    [local]
+  );
+  const isCepEligible = cepClass === "fora" || cepClass === "baixa";
+  const findTipo = (codigo: string) => TIPOS_DESCONTO.find((t) => t.codigo === codigo);
+
+  const removeCepDiscounts = () => {
+    const toRemove = local.filter((d) => d.codigo_desconto === "CEP10" || d.codigo_desconto === "CEP5");
+    if (toRemove.length) {
+      toRemove.forEach((d) => removeDescontoById(d.id));
+      setLocal((l) => l.filter((d) => d.codigo_desconto !== "CEP10" && d.codigo_desconto !== "CEP5"));
+    }
+  };
+
+  const applyCepDiscount = () => {
+    if (!selectedStudent) {
+      toast({ title: "Selecione o aluno", description: "Você precisa selecionar um aluno.", variant: "destructive" });
+      return;
+    }
+    if (!isCepEligible) {
+      toast({ title: "Não elegível por CEP", description: describeCepClass(cepClass), variant: "destructive" });
+      return;
+    }
+    const code = cepClass === "fora" ? "CEP10" : "CEP5";
+    const tipo = findTipo(code);
+    if (!tipo) return;
+    removeCepDiscounts();
+    const d: Desconto = {
+      id: crypto.randomUUID(),
+      student_id: selectedStudent.id,
+      tipo_desconto_id: tipo.id,
+      codigo_desconto: tipo.codigo,
+      percentual_aplicado: tipo.percentual_fixo || (code === "CEP10" ? 10 : 5),
+      status_aprovacao: "SOLICITADO",
+      data_solicitacao: new Date().toISOString(),
+    } as any;
+    addDesconto(d);
+    setLocal((l) => [...l, d]);
+    toast({ title: "Desconto por CEP aplicado", description: describeCepClass(cepClass) });
+  };
+
+  const onToggleCep = (checked: boolean) => {
+    if (checked) {
+      applyCepDiscount();
+    } else {
+      removeCepDiscounts();
+      toast({ title: "Desconto por CEP removido" });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-md border p-3">
@@ -168,6 +223,26 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="font-semibold">Desconto por CEP</h3>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Switch checked={hasCepDiscount} onCheckedChange={onToggleCep} disabled={!isCepEligible} />
+            <div>
+              <div className="text-sm font-medium">Aplicar desconto por CEP</div>
+              <div className="text-xs text-muted-foreground">{describeCepClass(cepClass)}</div>
+            </div>
+          </div>
+          {isCepEligible && (
+            <Badge variant="secondary">{cepClass === "fora" ? "10% (CEP10)" : "5% (CEP5)"}</Badge>
+          )}
+        </div>
+        {!isCepEligible && (
+          <p className="text-xs text-muted-foreground">Sem elegibilidade por CEP no endereço informado.</p>
+        )}
+        <div className="h-px bg-border" />
       </section>
 
       <section className="space-y-3">

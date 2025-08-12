@@ -546,10 +546,14 @@ const RematriculaAluno = () => {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex items-center gap-3">
-                <Switch checked={applyCep} onCheckedChange={onToggleCep} />
+                <Switch checked={applyCep} onCheckedChange={onToggleCep} disabled={!cepClass || cepClass === "alta"} />
                 <div>
                   <div className="text-sm font-medium">Aplicar desconto por CEP</div>
-                  <div className="text-xs text-muted-foreground">Necessita verificação do CEP</div>
+                  <div className="text-xs text-muted-foreground">
+                    {cepClass === "fora" && "Elegível: Fora de Poços (10%)"}
+                    {cepClass === "baixa" && "Elegível: Bairro de menor renda (5%)"}
+                    {(cepClass === "alta" || !cepClass) && "Sem elegibilidade por CEP para este endereço"}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
