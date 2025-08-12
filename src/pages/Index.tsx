@@ -5,7 +5,15 @@ const Index = () => {
   return (
     <main className="min-h-screen flex items-center justify-center bg-background">
       <article className="w-full container py-16 text-center space-y-8">
-        <header className="space-y-3">
+        <header className="space-y-4">
+          <img
+            src="/lovable-uploads/814e5eba-7015-4421-bfe7-7094b96ef294.png"
+            alt="Logo Instituto São João da Escócia (IESJE)"
+            className="mx-auto h-20 w-20 sm:h-24 sm:w-24 object-contain"
+            loading="lazy"
+            width={96}
+            height={96}
+          />
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">Sistema de Matrículas e Descontos IESJE</h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Rematrícula e novas matrículas com gestão inteligente de descontos, validação documental e trilhas de aprovação.
