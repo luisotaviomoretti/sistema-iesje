@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,6 +40,66 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
       uf: enderecoAluno?.uf || "MG",
     },
   });
+
+  // CEP auto-fill state and effect
+  const [isFetchingCep, setIsFetchingCep] = useState(false);
+  const lastCepRef = useRef<string>("");
+  const cepValue = form.watch("cep");
+
+  useEffect(() => {
+    const raw = cepValue || "";
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length !== 8 || lastCepRef.current === digits) return;
+
+    lastCepRef.current = digits;
+    setIsFetchingCep(true);
+
+    const fetchViaCep = async () => {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      if (!res.ok) throw new Error("viacep");
+      const data = await res.json();
+      if (data?.erro) return null;
+      return {
+        logradouro: data?.logradouro || "",
+        bairro: data?.bairro || "",
+        cidade: data?.localidade || "",
+        uf: data?.uf || "",
+      } as const;
+    };
+
+    const fetchBrasilApi = async () => {
+      const res = await fetch(`https://brasilapi.com.br/api/cep/v1/${digits}`);
+      if (!res.ok) throw new Error("brasilapi");
+      const data = await res.json();
+      return {
+        logradouro: data?.street || "",
+        bairro: data?.neighborhood || "",
+        cidade: data?.city || "",
+        uf: data?.state || "",
+      } as const;
+    };
+
+    (async () => {
+      try {
+        let addr = await fetchViaCep();
+        if (!addr) addr = await fetchBrasilApi();
+
+        if (addr) {
+          form.setValue("logradouro", addr.logradouro, { shouldDirty: true });
+          form.setValue("bairro", addr.bairro, { shouldDirty: true });
+          form.setValue("cidade", addr.cidade, { shouldDirty: true });
+          form.setValue("uf", addr.uf, { shouldDirty: true });
+          toast({ title: "Endereço preenchido", description: "Preenchido automaticamente via CEP." });
+        } else {
+          toast({ title: "CEP não encontrado", description: "Verifique o CEP informado.", variant: "destructive" });
+        }
+      } catch (e) {
+        toast({ title: "Erro ao buscar CEP", description: "Tente novamente mais tarde.", variant: "destructive" });
+      } finally {
+        setIsFetchingCep(false);
+      }
+    })();
+  }, [cepValue]);
 
   const classifyCep = (raw: string): "" | "fora" | "baixa" | "alta" => {
     const digits = (raw || "").replace(/\D/g, "");
@@ -120,7 +180,18 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
             <FormItem>
               <FormLabel>CEP</FormLabel>
               <FormControl>
-                <Input placeholder="00000-000" {...field} />
+                <Input
+                  placeholder="00000-000"
+                  maxLength={9}
+                  value={field.value}
+                  onChange={(e) => {
+                    const digits = (e.target.value || "").replace(/\D/g, "").slice(0, 8)
+                    const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits
+                    field.onChange(formatted)
+                  }}
+                  onBlur={field.onBlur}
+                  disabled={isFetchingCep}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -130,7 +201,7 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
             <FormItem className="sm:col-span-2">
               <FormLabel>Logradouro</FormLabel>
               <FormControl>
-                <Input placeholder="Rua/Avenida" {...field} />
+                <Input placeholder="Rua/Avenida" disabled={isFetchingCep} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -160,7 +231,7 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
             <FormItem>
               <FormLabel>Bairro</FormLabel>
               <FormControl>
-                <Input placeholder="Bairro" {...field} />
+                <Input placeholder="Bairro" disabled={isFetchingCep} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -170,7 +241,7 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
             <FormItem>
               <FormLabel>Cidade</FormLabel>
               <FormControl>
-                <Input placeholder="Cidade" {...field} />
+                <Input placeholder="Cidade" disabled={isFetchingCep} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -180,7 +251,7 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
             <FormItem>
               <FormLabel>UF</FormLabel>
               <FormControl>
-                <Input placeholder="UF" maxLength={2} {...field} />
+                <Input placeholder="UF" maxLength={2} disabled={isFetchingCep} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
