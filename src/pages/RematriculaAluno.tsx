@@ -25,7 +25,7 @@ const RematriculaAluno = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { selectedStudent, setSelectedStudent, setMatricula, descontos, addDesconto, removeDesconto, matricula } = useEnrollment();
+  const { selectedStudent, setSelectedStudent, setMatricula, descontos, addDesconto, removeDesconto, matricula, setEnderecoAluno, enderecoAluno } = useEnrollment();
 
   const aluno: Student | undefined = useMemo(() => {
     if (selectedStudent && selectedStudent.id === id) return selectedStudent;
@@ -202,6 +202,7 @@ const RematriculaAluno = () => {
 
   const handleSaveEndereco = formEndereco.handleSubmit((values) => {
     setEndereco(values);
+    setEnderecoAluno(values);
     setOpenEndereco(false);
     const novoCep = values.cep || "";
     setCep(novoCep);
@@ -255,6 +256,15 @@ const RematriculaAluno = () => {
     const addr = mockEnderecos.find((e) => e.student_id === aluno.id);
     if (addr) {
       setEndereco({
+        cep: addr.cep,
+        logradouro: addr.logradouro,
+        numero: addr.numero || "",
+        complemento: addr.complemento || "",
+        bairro: addr.bairro,
+        cidade: addr.cidade,
+        uf: addr.uf,
+      });
+      setEnderecoAluno({
         cep: addr.cep,
         logradouro: addr.logradouro,
         numero: addr.numero || "",
