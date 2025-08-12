@@ -10,6 +10,7 @@ import NovaMatricula from "./pages/NovaMatricula";
 import RematriculaAluno from "./pages/RematriculaAluno";
 import { EnrollmentProvider } from "./features/enrollment/context/EnrollmentContext";
 import IdentificacaoAluno from "./pages/Identificacao";
+import ResumoMatricula from "./pages/ResumoMatricula";
 
 const queryClient = new QueryClient();
 
@@ -24,8 +25,10 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/identificacao" element={<IdentificacaoAluno />} />
             <Route path="/rematricula/:id" element={<RematriculaAluno />} />
+            <Route path="/rematricula/:id/resumo" element={<ResumoMatricula />} />
             <Route path="/rematricula" element={<Rematricula />} />
             <Route path="/nova-matricula" element={<NovaMatricula />} />
+            <Route path="/nova-matricula/resumo" element={<ResumoMatricula />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

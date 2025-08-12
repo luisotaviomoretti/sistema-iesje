@@ -205,7 +205,7 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
             <Download className="mr-2 h-4 w-4" />
             Download Proposta
           </Button>
-          <Button onClick={onFinish} disabled={!canFinish}>Concluir</Button>
+          <Button onClick={onFinish} disabled={!canFinish}>Confirmar</Button>
         </div>
       </div>
     </div>

@@ -116,7 +116,7 @@ const finish = () => {
           {current === 1 && <StepResponsaveis onPrev={goPrev} onNext={goNext} />}
           {current === 2 && <StepEndereco onPrev={goPrev} onNext={goNext} />}
           {current === 3 && <StepAcademicos onPrev={goPrev} onNext={goNext} onSave={onSaveAcademics} />}
-          {current === 4 && <StepDescontos onPrev={goPrev} onFinish={finish} baseMensal={baseMensal} />}
+          {current === 4 && <StepDescontos onPrev={goPrev} onFinish={() => navigate("/nova-matricula/resumo")} baseMensal={baseMensal} />}
         </CardContent>
       </Card>
     </main>

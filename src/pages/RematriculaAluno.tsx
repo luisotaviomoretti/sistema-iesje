@@ -19,7 +19,7 @@ import { TIPOS_DESCONTO, SERIES_ANO, proximaSerie, valorBaseParaSerie } from "@/
 import { mockDescontos, mockResponsaveis, mockStudents, mockMatriculas } from "@/data/mock";
 import { useToast } from "@/hooks/use-toast";
 import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
-import FinalConfirmation from "@/features/enrollment/components/FinalConfirmation";
+// Removed FinalConfirmation in favor of summary flow
 
 const RematriculaAluno = () => {
   const { id } = useParams();
@@ -536,7 +536,20 @@ const RematriculaAluno = () => {
           </CardContent>
         </Card>
 
-        <FinalConfirmation />
+        <Card>
+          <CardHeader>
+            <CardTitle>Confirmação</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Revise os dados acima e avance para o resumo final.</p>
+            <Button
+              onClick={() => navigate(`/rematricula/${id}/resumo`)}
+              disabled={!selectedStudent || !matricula?.serie_ano || !matricula?.turno || Number(matricula?.valor_mensalidade_base || 0) <= 0}
+            >
+              Confirmar
+            </Button>
+          </CardContent>
+        </Card>
       </section>
 
       {/* Modal Dados Pessoais */}
