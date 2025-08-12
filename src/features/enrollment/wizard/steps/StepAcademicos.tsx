@@ -17,7 +17,7 @@ const schema = z.object({
 
 export type StepAcademicosValues = z.infer<typeof schema>;
 
-interface FileItem { id: string; name: string; url: string; type: string; }
+
 
 interface Props { onNext: () => void; onPrev: () => void; onSave: (values: StepAcademicosValues) => void; }
 
@@ -28,7 +28,7 @@ const StepAcademicos: React.FC<Props> = ({ onNext, onPrev, onSave }) => {
     mode: "onChange",
   });
 
-  const [files, setFiles] = useState<FileItem[]>([]);
+  
 
   const requiredDocs = useMemo(() => [
     { id: "doc-id", label: "Documento de Identidade" },
@@ -36,23 +36,12 @@ const StepAcademicos: React.FC<Props> = ({ onNext, onPrev, onSave }) => {
     { id: "doc-res", label: "Comprovante de Residência" },
   ], []);
 
-  const statuses: Record<string, "NAO_ENVIADO" | "PENDENTE" | "APROVADO" | "REPROVADO"> = useMemo(() => {
-    const map: Record<string, any> = {};
-    for (const d of requiredDocs) map[d.id] = files.some((f) => f.id.startsWith(d.id)) ? "PENDENTE" : "NAO_ENVIADO";
-    return map;
-  }, [requiredDocs, files]);
 
   const onSubmit = form.handleSubmit((values) => {
     onSave(values);
     onNext();
   });
 
-  const onPick = (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const url = URL.createObjectURL(f);
-    setFiles((prev) => [...prev, { id: `${docId}-${crypto.randomUUID()}`, name: f.name, url, type: f.type }]);
-  };
 
   return (
     <div className="space-y-6">
@@ -119,35 +108,12 @@ const StepAcademicos: React.FC<Props> = ({ onNext, onPrev, onSave }) => {
       <Card>
         <CardContent className="p-4 space-y-3">
           <h3 className="font-semibold">Documentos obrigatórios</h3>
-          <ul className="space-y-2">
+          <p className="text-sm text-muted-foreground">O envio de anexos está desativado neste sistema no momento.</p>
+          <ul className="list-disc pl-5 space-y-1">
             {requiredDocs.map((doc) => (
-              <li key={doc.id} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{doc.label}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="sr-only" htmlFor={`file-${doc.id}`}>Anexar</label>
-                  <input id={`file-${doc.id}`} type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => onPick(doc.id, e)} />
-                  <Button size="sm" variant="secondary" onClick={() => document.getElementById(`file-${doc.id}`)?.click()}>Anexar</Button>
-                  <span className={`text-xs px-2 py-1 rounded border ${statuses[doc.id] === "APROVADO" ? "bg-green-500/10" : statuses[doc.id] === "REPROVADO" ? "bg-destructive/10" : statuses[doc.id] === "PENDENTE" ? "bg-secondary" : ""}`}>{statuses[doc.id] || "NAO_ENVIADO"}</span>
-                </div>
-              </li>
+              <li key={doc.id} className="text-sm">{doc.label}</li>
             ))}
           </ul>
-          {files.length > 0 && (
-            <div className="grid sm:grid-cols-3 gap-3 pt-2">
-              {files.map((f) => (
-                <div key={f.id} className="rounded-md border p-2 text-xs space-y-2">
-                  <div className="truncate font-medium" title={f.name}>{f.name}</div>
-                  {f.type.startsWith("image/") ? (
-                    <img src={f.url} alt={f.name} className="w-full h-28 object-cover rounded" loading="lazy" />
-                  ) : (
-                    <div className="text-muted-foreground">Arquivo: {f.type}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { Desconto } from "@/features/enrollment/types";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
+
 import { getChecklistForCodigo } from "@/features/enrollment/utils/discounts";
 
 interface DiscountChecklistProps {
@@ -36,22 +36,7 @@ export const DiscountChecklist: React.FC<DiscountChecklistProps> = ({ desconto }
                 {it.label}
               </label>
             </div>
-            <div className="shrink-0">
-              <label className="sr-only" htmlFor={`file-${desconto.id}-${it.id}`}>Anexar</label>
-              <input
-                id={`file-${desconto.id}-${it.id}`}
-                type="file"
-                className="hidden"
-                onChange={() => setChecked((s) => ({ ...s, [it.id]: true }))}
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => document.getElementById(`file-${desconto.id}-${it.id}`)?.click()}
-              >
-                Anexar
-              </Button>
-            </div>
+            <div className="shrink-0 text-xs text-muted-foreground">Anexos desativados</div>
           </li>
         ))}
       </ul>
