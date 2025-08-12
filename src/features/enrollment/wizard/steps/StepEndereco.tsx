@@ -9,6 +9,7 @@ import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { useToast } from "@/hooks/use-toast";
 import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
 import type { StatusDesconto } from "@/features/enrollment/types";
+import { classifyCep, describeCepClass } from "@/features/enrollment/utils/cep";
 
 const enderecoSchema = z.object({
   cep: z.string().min(8, "Informe o CEP"),
@@ -101,16 +102,7 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
     })();
   }, [cepValue]);
 
-  const classifyCep = (raw: string): "" | "fora" | "baixa" | "alta" => {
-    const digits = (raw || "").replace(/\D/g, "");
-    if (digits.length < 8) return "";
-    const isPocos = digits.startsWith("377");
-    if (!isPocos) return "fora";
-    const baixaPrefixes = ["37712", "37713"]; // placeholder — substituir com base oficial (Supabase futuramente)
-    if (baixaPrefixes.some((p) => digits.startsWith(p))) return "baixa";
-    return "alta";
-  };
-
+// classifyCep moved to utils (imported)
   const findTipo = (codigo: string) => TIPOS_DESCONTO.find((t) => t.codigo === codigo);
 
   const addOrUpdateCepDiscount = (cls: "" | "fora" | "baixa" | "alta") => {
@@ -193,6 +185,7 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
                   disabled={isFetchingCep}
                 />
               </FormControl>
+              <p className="text-xs text-muted-foreground">{describeCepClass(classifyCep(cepValue))}</p>
               <FormMessage />
             </FormItem>
           )} />

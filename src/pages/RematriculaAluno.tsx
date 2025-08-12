@@ -19,6 +19,8 @@ import { TIPOS_DESCONTO, SERIES_ANO, proximaSerie, valorBaseParaSerie } from "@/
 import { mockDescontos, mockResponsaveis, mockStudents, mockMatriculas, mockEnderecos } from "@/data/mock";
 import { useToast } from "@/hooks/use-toast";
 import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
+import CepInfo from "@/features/enrollment/components/CepInfo";
+import { classifyCep } from "@/features/enrollment/utils/cep";
 // Removed FinalConfirmation in favor of summary flow
 
 const RematriculaAluno = () => {
@@ -231,16 +233,7 @@ const RematriculaAluno = () => {
   // ==== Descontos Comerciais helpers ====
   const findTipo = (codigo: string) => TIPOS_DESCONTO.find((t) => t.codigo === codigo);
 
-  const classifyCep = (raw: string): "" | "fora" | "baixa" | "alta" => {
-    const digits = (raw || "").replace(/\D/g, "");
-    if (digits.length < 8) return "";
-    const isPocos = digits.startsWith("377");
-    if (!isPocos) return "fora";
-    const baixaPrefixes = ["37712", "37713"]; // placeholder - substituir por base oficial
-    if (baixaPrefixes.some((p) => digits.startsWith(p))) return "baixa";
-    return "alta";
-  };
-
+// classifyCep moved to utils (imported)
   // Prefill from mocks when opening Rematrícula
   useEffect(() => {
     if (!aluno) return;
@@ -537,6 +530,7 @@ const RematriculaAluno = () => {
             <CardTitle>Descontos Comerciais</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <CepInfo cep={cep} compact />
             <div>
               <Label>CEP do Aluno</Label>
               <div className="mt-1 flex gap-2">

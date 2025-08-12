@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
 import { DiscountSummary } from "@/features/enrollment/components/DiscountSummary";
+import CepInfo from "@/features/enrollment/components/CepInfo";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
 import type { Desconto } from "@/features/enrollment/types";
@@ -22,7 +23,7 @@ const schema = z.object({ tipoId: z.string().min(1, "Selecione um tipo") });
 interface Props { onPrev: () => void; onFinish: () => void; baseMensal: number; }
 
 const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
-  const { descontos, addDesconto, selectedStudent, removeDescontoById, matricula, responsaveis } = useEnrollment();
+  const { descontos, addDesconto, selectedStudent, removeDescontoById, matricula, responsaveis, enderecoAluno } = useEnrollment();
   const [local, setLocal] = useState<Desconto[]>(descontos as any);
 
   const form = useForm<{ tipoId: string }>({ resolver: zodResolver(schema), defaultValues: { tipoId: "" } });
@@ -111,6 +112,9 @@ const StepDescontos: React.FC<Props> = ({ onPrev, onFinish, baseMensal }) => {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-md border p-3">
+        <CepInfo cep={enderecoAluno?.cep} compact />
+      </div>
       <Form {...form}>
         <form onSubmit={handleAdd} className="grid sm:grid-cols-3 gap-4">
           <FormField control={form.control} name="tipoId" render={({ field }) => (
