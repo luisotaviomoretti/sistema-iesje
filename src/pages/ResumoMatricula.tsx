@@ -9,10 +9,10 @@ import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
 import type { Desconto } from "@/features/enrollment/types";
 import { Download, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { mockResponsaveis } from "@/data/mock";
+import { mockResponsaveis, mockEnderecos } from "@/data/mock";
 import { addRecent } from "@/features/enrollment/utils/recent-enrollments";
 const ResumoMatricula: React.FC = () => {
-  const { flow, selectedStudent, matricula, descontos, enderecoAluno, responsaveis } = useEnrollment();
+  const { flow, selectedStudent, matricula, descontos, enderecoAluno, responsaveis, setEnderecoAluno } = useEnrollment();
   const { toast } = useToast();
   const navigate = useNavigate();
   const params = useParams();
@@ -48,6 +48,28 @@ const ResumoMatricula: React.FC = () => {
     canonical.setAttribute("href", window.location.href);
     document.head.appendChild(canonical);
   }, [flow, location.pathname]);
+
+  // Fallback de endereço em Rematrícula (se o contexto vier vazio)
+  useEffect(() => {
+    if (flow === "rematricula") {
+      const sid = (params as any)?.id || selectedStudent?.id;
+      const isEmpty = !enderecoAluno?.cep && !enderecoAluno?.logradouro && !enderecoAluno?.bairro && !enderecoAluno?.cidade && !enderecoAluno?.uf;
+      if (sid && isEmpty) {
+        const addr = mockEnderecos.find((e) => e.student_id === sid);
+        if (addr) {
+          setEnderecoAluno({
+            cep: addr.cep,
+            logradouro: addr.logradouro,
+            numero: addr.numero || "",
+            complemento: addr.complemento || "",
+            bairro: addr.bairro,
+            cidade: addr.cidade,
+            uf: addr.uf,
+          });
+        }
+      }
+    }
+  }, [flow, (params as any)?.id, selectedStudent?.id, enderecoAluno?.cep, enderecoAluno?.logradouro, enderecoAluno?.bairro, enderecoAluno?.cidade, enderecoAluno?.uf, setEnderecoAluno]);
 
   const baseMensal = Number(matricula?.valor_mensalidade_base || 0);
   const descontosList = useMemo(() => (descontos as Desconto[]) || [], [descontos]);

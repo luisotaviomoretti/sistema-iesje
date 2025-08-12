@@ -66,11 +66,11 @@ export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children
   }, []);
 
 const setEnderecoAluno = useCallback<EnrollmentActions["setEnderecoAluno"]>((e) => {
-  setState((s) => ({ ...s, enderecoAluno: { ...s.enderecoAluno, ...e } }));
+  setState((s) => ({ ...s, enderecoAluno: { ...(s.enderecoAluno ?? {}), ...e } }));
 }, []);
 
 const setResponsaveis = useCallback<EnrollmentActions["setResponsaveis"]>((r) => {
-  setState((s) => ({ ...s, responsaveis: { ...s.responsaveis, ...r } }));
+  setState((s) => ({ ...s, responsaveis: { ...(s.responsaveis ?? {}), ...r } }));
 }, []);
 
   const addDesconto = useCallback<EnrollmentActions["addDesconto"]>((d) => {
