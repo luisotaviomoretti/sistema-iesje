@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
@@ -362,7 +363,7 @@ const RematriculaAluno = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <FormLabel>CEP do Aluno</FormLabel>
+              <Label>CEP do Aluno</Label>
               <div className="mt-1 flex gap-2">
                 <Input placeholder="00000-000" value={cep} onChange={(e) => setCep(e.target.value)} />
                 <Button type="button" variant="secondary" onClick={onVerifyCep}>Verificar CEP</Button>
