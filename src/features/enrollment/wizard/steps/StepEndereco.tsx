@@ -7,8 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { useToast } from "@/hooks/use-toast";
-import { TIPOS_DESCONTO } from "@/features/enrollment/constants";
-import type { StatusDesconto } from "@/features/enrollment/types";
 import { classifyCep, describeCepClass } from "@/features/enrollment/utils/cep";
 
 const enderecoSchema = z.object({
@@ -26,7 +24,7 @@ export type EnderecoAluno = z.infer<typeof enderecoSchema>;
 interface Props { onPrev: () => void; onNext: () => void }
 
 const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
-  const { selectedStudent, enderecoAluno, setEnderecoAluno, addDesconto, removeDesconto } = useEnrollment();
+  const { selectedStudent, enderecoAluno, setEnderecoAluno } = useEnrollment();
   const { toast } = useToast();
 
   const form = useForm<EnderecoAluno>({
@@ -102,43 +100,7 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
     })();
   }, [cepValue]);
 
-// classifyCep moved to utils (imported)
-  const findTipo = (codigo: string) => TIPOS_DESCONTO.find((t) => t.codigo === codigo);
-
-  const addOrUpdateCepDiscount = (cls: "" | "fora" | "baixa" | "alta") => {
-    removeDesconto("CEP10");
-    removeDesconto("CEP5");
-    if (!selectedStudent) return;
-
-    if (cls === "fora") {
-      const tipo = findTipo("CEP10");
-      if (tipo) {
-        addDesconto({
-          id: crypto.randomUUID(),
-          student_id: selectedStudent.id,
-          tipo_desconto_id: tipo.id,
-          codigo_desconto: tipo.codigo,
-          percentual_aplicado: tipo.percentual_fixo ?? 10,
-          status_aprovacao: "SOLICITADO" as StatusDesconto,
-          data_solicitacao: new Date().toISOString(),
-        });
-      }
-    } else if (cls === "baixa") {
-      const tipo = findTipo("CEP5");
-      if (tipo) {
-        addDesconto({
-          id: crypto.randomUUID(),
-          student_id: selectedStudent.id,
-          tipo_desconto_id: tipo.id,
-          codigo_desconto: tipo.codigo,
-          percentual_aplicado: tipo.percentual_fixo ?? 5,
-          status_aprovacao: "SOLICITADO" as StatusDesconto,
-          data_solicitacao: new Date().toISOString(),
-        });
-      }
-    }
-  };
-
+// Classificação de CEP via utils; aplicação de desconto ocorrerá manualmente na etapa "Descontos".
   const onSubmit = form.handleSubmit((values) => {
     setEnderecoAluno(values);
     const cls = classifyCep(values.cep);
@@ -147,20 +109,9 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
     else if (cls === "baixa") descMsg = "Poços (bairro de menor renda) — elegível a 5% (CEP5)";
     else if (cls === "alta") descMsg = "Poços (bairro de maior renda) — sem desconto por CEP";
 
-    if (!selectedStudent) {
-      toast({ title: "Endereço salvo", description: `${descMsg}. Selecione o aluno na etapa 1 para aplicar o desconto automaticamente.` });
-      onNext();
-      return;
-    }
-
-    if (!cls) {
-      toast({ title: "Endereço salvo", description: descMsg });
-      onNext();
-      return;
-    }
-
-    addOrUpdateCepDiscount(cls);
-    toast({ title: "Endereço salvo", description: `${descMsg}. Desconto comercial aplicado automaticamente.` });
+    const elegivel = cls === "fora" || cls === "baixa";
+    const complemento = elegivel ? " Você poderá aplicar o desconto por CEP na etapa \"Descontos\"." : "";
+    toast({ title: "Endereço salvo", description: `${descMsg}${complemento}` });
     onNext();
   });
 
