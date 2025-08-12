@@ -16,7 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import type { Desconto, Student, StatusDesconto } from "@/features/enrollment/types";
 import { TIPOS_DESCONTO, SERIES_ANO, proximaSerie, valorBaseParaSerie } from "@/features/enrollment/constants";
-import { mockDescontos, mockResponsaveis, mockStudents, mockMatriculas } from "@/data/mock";
+import { mockDescontos, mockResponsaveis, mockStudents, mockMatriculas, mockEnderecos } from "@/data/mock";
 import { useToast } from "@/hooks/use-toast";
 import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
 // Removed FinalConfirmation in favor of summary flow
@@ -239,6 +239,62 @@ const RematriculaAluno = () => {
     if (baixaPrefixes.some((p) => digits.startsWith(p))) return "baixa";
     return "alta";
   };
+
+  // Prefill from mocks when opening Rematrícula
+  useEffect(() => {
+    if (!aluno) return;
+
+    // Dados pessoais
+    formPersonal.reset({
+      nome_social: aluno.nome_social || "",
+      data_nascimento: aluno.data_nascimento || "",
+      sexo: aluno.sexo || "",
+    });
+
+    // Endereço do aluno
+    const addr = mockEnderecos.find((e) => e.student_id === aluno.id);
+    if (addr) {
+      setEndereco({
+        cep: addr.cep,
+        logradouro: addr.logradouro,
+        numero: addr.numero || "",
+        complemento: addr.complemento || "",
+        bairro: addr.bairro,
+        cidade: addr.cidade,
+        uf: addr.uf,
+      });
+      formEndereco.reset({
+        cep: addr.cep,
+        logradouro: addr.logradouro,
+        numero: addr.numero || "",
+        complemento: addr.complemento || "",
+        bairro: addr.bairro,
+        cidade: addr.cidade,
+        uf: addr.uf,
+      });
+      setCep(addr.cep);
+      const cls = classifyCep(addr.cep);
+      setCepClass(cls);
+    }
+
+    // Acadêmicos (próxima série e valor base)
+    if (!matricula || !matricula.serie_ano) {
+      const mats = mockMatriculas
+        .filter((m) => m.student_id === aluno.id)
+        .sort((a, b) => b.ano_letivo - a.ano_letivo);
+      const last = mats[0];
+      const prox = sugestaoProximaSerie || last?.serie_ano || "";
+      const base = typeof prox === "string" ? valorBaseParaSerie(prox) : 0;
+      const turno = last?.turno || "";
+      const nextMat = {
+        serie_ano: prox,
+        turno,
+        valor_mensalidade_base: typeof base === "number" ? base : 0,
+      };
+      setMatricula(nextMat);
+      formAcademic.reset(nextMat);
+    }
+  }, [aluno?.id]);
 
   const addOrUpdateCepDiscount = (cls: "" | "fora" | "baixa" | "alta") => {
     // remove anteriores
