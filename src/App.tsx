@@ -11,6 +11,7 @@ import RematriculaAluno from "./pages/RematriculaAluno";
 import { EnrollmentProvider } from "./features/enrollment/context/EnrollmentContext";
 import IdentificacaoAluno from "./pages/Identificacao";
 import ResumoMatricula from "./pages/ResumoMatricula";
+import MatriculasRecentes from "./pages/MatriculasRecentes";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/rematricula" element={<Rematricula />} />
             <Route path="/nova-matricula" element={<NovaMatricula />} />
             <Route path="/nova-matricula/resumo" element={<ResumoMatricula />} />
+            <Route path="/matriculas-recentes" element={<MatriculasRecentes />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

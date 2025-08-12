@@ -22,6 +22,9 @@ const Index = () => {
           <Button asChild variant="outline">
             <Link to="/nova-matricula">Nova Matrícula</Link>
           </Button>
+          <Button asChild variant="outline">
+            <Link to="/matriculas-recentes">Últimas Matrículas</Link>
+          </Button>
         </div>
 
         <section className="grid md:grid-cols-3 gap-6 pt-6">

@@ -10,7 +10,7 @@ import type { Desconto } from "@/features/enrollment/types";
 import { Download, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { mockResponsaveis } from "@/data/mock";
-
+import { addRecent } from "@/features/enrollment/utils/recent-enrollments";
 const ResumoMatricula: React.FC = () => {
   const { flow, selectedStudent, matricula, descontos, enderecoAluno, responsaveis } = useEnrollment();
   const { toast } = useToast();
@@ -67,6 +67,34 @@ const ResumoMatricula: React.FC = () => {
   };
 
   const onRegister = () => {
+    // Salvar no histórico local (últimas 20)
+    try {
+      addRecent({
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        flow: flow === "rematricula" ? "rematricula" : "nova",
+        student: {
+          id: selectedStudent?.id || "",
+          nome_completo: selectedStudent?.nome_completo || "",
+          cpf: selectedStudent?.cpf || "",
+        },
+        matricula: {
+          serie_ano: matricula?.serie_ano,
+          turno: matricula?.turno,
+          valor_mensalidade_base: baseMensal,
+        },
+        descontos: (descontosList || []).map((d: any) => ({
+          id: d.id || crypto.randomUUID(),
+          tipo_desconto_id: d.tipo_desconto_id,
+          codigo_desconto: d.codigo_desconto,
+          percentual_aplicado: Number(d.percentual_aplicado ?? 0),
+          observacoes: d.observacoes,
+        })),
+        responsaveis: respList as any,
+        enderecoAluno: enderecoAluno as any,
+      });
+    } catch {}
+
     toast({
       title: "Matrícula registrada",
       description: "Dados salvos localmente. Conecte ao Supabase para persistir no banco.",
