@@ -9,7 +9,7 @@ import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
 import type { Desconto } from "@/features/enrollment/types";
 import { Download, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { mockResponsaveis, mockEnderecos } from "@/data/mock";
+import { mockResponsaveis, mockEnderecos, mockDescontos } from "@/data/mock";
 import { addRecent } from "@/features/enrollment/utils/recent-enrollments";
 const ResumoMatricula: React.FC = () => {
   const { flow, selectedStudent, matricula, descontos, enderecoAluno, responsaveis, setEnderecoAluno } = useEnrollment();
@@ -72,9 +72,21 @@ const ResumoMatricula: React.FC = () => {
   }, [flow, (params as any)?.id, selectedStudent?.id, enderecoAluno?.cep, enderecoAluno?.logradouro, enderecoAluno?.bairro, enderecoAluno?.cidade, enderecoAluno?.uf, setEnderecoAluno]);
 
   const baseMensal = Number(matricula?.valor_mensalidade_base || 0);
-  const descontosList = useMemo(() => (descontos as Desconto[]) || [], [descontos]);
-  const hasComExtra = descontosList.some((d) => d.codigo_desconto === "COM_EXTRA");
-
+  const descontosCtx = useMemo(() => (descontos as Desconto[]) || [], [descontos]);
+  const descontosFromMock = useMemo(() => {
+    if (flow !== "rematricula") return [] as Desconto[];
+    const sid = (params as any)?.id || selectedStudent?.id;
+    if (!sid) return [] as Desconto[];
+    return mockDescontos.filter((d) => d.student_id === sid);
+  }, [flow, (params as any)?.id, selectedStudent?.id]);
+  const descontosMerged = useMemo(() => {
+    if (flow !== "rematricula") return descontosCtx;
+    const map = new Map<string, Desconto>();
+    descontosFromMock.forEach((d) => map.set(d.codigo_desconto, d));
+    descontosCtx.forEach((d) => map.set(d.codigo_desconto, d));
+    return Array.from(map.values());
+  }, [flow, descontosCtx, descontosFromMock]);
+  const hasComExtra = descontosMerged.some((d) => d.codigo_desconto === "COM_EXTRA");
   const disabled = !selectedStudent || !matricula?.serie_ano || !matricula?.turno || baseMensal <= 0;
 
   const onDownload = () => {
@@ -82,7 +94,7 @@ const ResumoMatricula: React.FC = () => {
       flow: flow === "rematricula" ? "rematricula" : "nova",
       student: selectedStudent as any,
       matricula: matricula as any,
-      descontos: descontosList as any,
+      descontos: descontosMerged as any,
       baseMensal,
       responsaveis: respList as any,
     });
@@ -105,7 +117,7 @@ const ResumoMatricula: React.FC = () => {
           turno: matricula?.turno,
           valor_mensalidade_base: baseMensal,
         },
-        descontos: (descontosList || []).map((d: any) => ({
+        descontos: (descontosMerged || []).map((d: any) => ({
           id: d.id || crypto.randomUUID(),
           tipo_desconto_id: d.tipo_desconto_id,
           codigo_desconto: d.codigo_desconto,
@@ -188,7 +200,7 @@ const ResumoMatricula: React.FC = () => {
             <CardTitle>Resumo Financeiro e Descontos</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <DiscountSummary baseMensal={baseMensal} descontos={descontosList} />
+            <DiscountSummary baseMensal={baseMensal} descontos={descontosMerged} />
             {hasComExtra && (
               <p className="text-xs text-muted-foreground">
                 Nota: Há um desconto comercial extra (negociação). A Diretoria Administrativa avaliará de forma mais contundente este desconto.
