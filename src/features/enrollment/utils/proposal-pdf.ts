@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { Student, Matricula, Desconto, Responsavel } from "../types";
-import { TIPOS_DESCONTO } from "../constants";
+import { TIPOS_DESCONTO, MAX_DESCONTO_TOTAL } from "../constants";
 import { calculateTotals } from "./discounts";
 
 const BRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -41,11 +41,13 @@ export function generateProposalPdf(params: {
   descontos: (Desconto | Partial<Desconto>)[];
   baseMensal?: number;
   responsaveis?: Array<Pick<Responsavel, "nome_completo" | "cpf" | "tipo">>;
+  discountTypes?: any[];
+  maxDiscountLimit?: number;
 }) {
-  const { flow, student, matricula, descontos, baseMensal, responsaveis } = params;
+  const { flow, student, matricula, descontos, baseMensal, responsaveis, discountTypes = TIPOS_DESCONTO, maxDiscountLimit = MAX_DESCONTO_TOTAL } = params;
   const base = Number(baseMensal ?? matricula?.valor_mensalidade_base ?? 0);
   const descontoItems = normalizeDescontos(descontos);
-  const summary = calculateTotals(base, (descontos as any) as Desconto[]);
+  const summary = calculateTotals(base, (descontos as any) as Desconto[], discountTypes, maxDiscountLimit);
   const docs = collectDocs(descontos);
 
   const doc = new jsPDF({ unit: "pt", format: "a4" });

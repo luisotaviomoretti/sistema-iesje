@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import { classifyCep, describeCepClass, formatCep } from "@/features/enrollment/utils/cep";
+import { classifyCep, describeCepClass, formatCep, classifyCepWithDynamic, describeCepClassWithDynamic } from "@/features/enrollment/utils/cep";
+import { usePublicCepClassification } from "@/features/admin/hooks/useCepRanges";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -12,9 +13,26 @@ interface CepInfoProps {
 }
 
 const CepInfo: React.FC<CepInfoProps> = ({ cep, editable = false, onChangeCep, compact = false }) => {
-  const cls = useMemo(() => classifyCep(cep), [cep]);
-  const text = useMemo(() => describeCepClass(cls), [cls]);
+  // 🔄 MIGRAÇÃO PROGRESSIVA: Buscar dados dinâmicos do admin
+  // TEMPORARIAMENTE DESABILITADO: const { data: dynamicClassification, isLoading } = usePublicCepClassification(cep);
+  const dynamicClassification = null;
+  const isLoading = false;
+  
+  // 🎯 FALLBACK INTELIGENTE: Usar dados dinâmicos ou estáticos
+  const cls = useMemo(() => {
+    return classifyCepWithDynamic(cep, dynamicClassification, true);
+  }, [cep, dynamicClassification]);
+  
+  const text = useMemo(() => {
+    return describeCepClassWithDynamic(cls, dynamicClassification, true);
+  }, [cls, dynamicClassification]);
+  
   const formatted = useMemo(() => formatCep(cep), [cep]);
+  
+  // Status da sincronização
+  const isDynamic = useMemo(() => {
+    return dynamicClassification?.categoria === cls && !isLoading;
+  }, [dynamicClassification, cls, isLoading]);
 
   if (editable) {
     return (
@@ -27,10 +45,23 @@ const CepInfo: React.FC<CepInfoProps> = ({ cep, editable = false, onChangeCep, c
             onChange={(e) => onChangeCep?.(e.target.value)}
           />
           <Badge variant={cls === "fora" ? "default" : cls === "baixa" ? "secondary" : cls === "alta" ? "outline" : "secondary"}>
-            {cls || "—"}
+            {isLoading ? "..." : (cls || "—")}
           </Badge>
+          {isDynamic && (
+            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+              Admin
+            </Badge>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground">{text}</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">{text}</p>
+          {cep && (
+            <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+              <div className={`w-1.5 h-1.5 rounded-full ${isDynamic ? 'bg-green-500' : 'bg-yellow-500'}`} />
+              <span>{isDynamic ? '✅ Dinâmico' : '⚠️ Estático'}</span>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -42,9 +73,20 @@ const CepInfo: React.FC<CepInfoProps> = ({ cep, editable = false, onChangeCep, c
       </div>
       <div className="flex items-center gap-2">
         <Badge variant={cls === "fora" ? "default" : cls === "baixa" ? "secondary" : cls === "alta" ? "outline" : "secondary"}>
-          {cls || "—"}
+          {isLoading ? "..." : (cls || "—")}
         </Badge>
+        {isDynamic && (
+          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+            Admin
+          </Badge>
+        )}
         {!compact && <span className="text-xs text-muted-foreground">{text}</span>}
+        {!compact && cep && (
+          <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+            <div className={`w-1.5 h-1.5 rounded-full ${isDynamic ? 'bg-green-500' : 'bg-yellow-500'}`} />
+            <span>{isDynamic ? '✅ Dinâmico' : '⚠️ Estático'}</span>
+          </div>
+        )}
       </div>
     </div>
   );

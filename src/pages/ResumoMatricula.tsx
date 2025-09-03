@@ -7,12 +7,44 @@ import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { DiscountSummary } from "@/features/enrollment/components/DiscountSummary";
 import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
 import type { Desconto } from "@/features/enrollment/types";
-import { Download, CheckCircle2 } from "lucide-react";
+import { Download, CheckCircle2, Calculator, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { mockResponsaveis, mockEnderecos, mockDescontos } from "@/data/mock";
 import { addRecent } from "@/features/enrollment/utils/recent-enrollments";
 const ResumoMatricula: React.FC = () => {
-  const { flow, selectedStudent, matricula, descontos, enderecoAluno, responsaveis, setEnderecoAluno } = useEnrollment();
+  // ============================================================================
+  // SISTEMA UNIFICADO: Dados do contexto refatorado
+  // ============================================================================
+  const { 
+    // Dados básicos
+    flow, selectedStudent, matricula, enderecoAluno, responsaveis, setEnderecoAluno,
+    
+    // Dados do novo sistema unificado
+    selectedTrackId,
+    selectedDiscountIds,
+    calculatedTotals,
+    trackData,
+    discountsData,
+    isLoading,
+    calculationValid,
+    
+    // Dados antigos para compatibilidade
+    descontos,
+    trilhos
+  } = useEnrollment();
+  
+  // DEBUG: Verificar dados do sistema unificado
+  console.log('🔍 RESUMO MATRÍCULA DEBUG:', {
+    selectedTrackId,
+    selectedDiscountIds,
+    calculatedTotals,
+    trackData,
+    discountsData,
+    isLoading,
+    calculationValid,
+    legacyDescontos: descontos,
+    legacyTrilhos: trilhos
+  });
   const { toast } = useToast();
   const navigate = useNavigate();
   const params = useParams();
@@ -197,13 +229,150 @@ const ResumoMatricula: React.FC = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Resumo Financeiro e Descontos</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              Resumo Financeiro da Matrícula
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <DiscountSummary baseMensal={baseMensal} descontos={descontosMerged} />
+          <CardContent className="space-y-4">
+            {/* ============================================================================ */}
+            {/* INFORMAÇÕES DO TRILHO E DESCONTOS SELECIONADOS */}
+            {/* ============================================================================ */}
+            <div className="space-y-3">
+              {/* Trilho selecionado */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Trilho:</span>
+                {selectedTrackId ? (
+                  <Badge variant="default" className="bg-blue-600">
+                    Trilho {selectedTrackId} - {trackData?.nome || 'Carregando...'}
+                  </Badge>
+                ) : trilhos?.trilho_escolhido ? (
+                  <Badge variant="outline">
+                    {trilhos.trilho_escolhido === 'especial' ? 'Trilho A - Especial' :
+                     trilhos.trilho_escolhido === 'combinado' ? 'Trilho B - Combinado' :
+                     'Trilho C - Normal'}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">Nenhum trilho selecionado</Badge>
+                )}
+              </div>
+
+              {/* Descontos selecionados */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-muted-foreground">Descontos selecionados:</span>
+                  <Badge variant="secondary">
+                    {selectedDiscountIds?.length || descontosMerged.length || 0}
+                  </Badge>
+                </div>
+                
+                {/* SISTEMA UNIFICADO: Mostrar descontos dos hooks */}
+                {discountsData && discountsData.length > 0 ? (
+                  <div className="space-y-1">
+                    {discountsData.map((discount) => (
+                      <div key={discount.id} className="flex items-center justify-between text-xs bg-green-50 p-2 rounded border-l-2 border-green-400">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {discount.codigo}
+                          </Badge>
+                          <span>{discount.nome}</span>
+                        </div>
+                        <span className="font-medium text-green-700">
+                          -{discount.percentual_efetivo}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : descontosMerged.length > 0 ? (
+                  /* SISTEMA ANTIGO: Fallback */
+                  <div className="space-y-1">
+                    {descontosMerged.map((desconto) => (
+                      <div key={desconto.id} className="flex items-center justify-between text-xs bg-orange-50 p-2 rounded border-l-2 border-orange-400">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs border-orange-300">
+                            {desconto.codigo_desconto}
+                          </Badge>
+                          <span>Desconto {desconto.codigo_desconto}</span>
+                        </div>
+                        <span className="font-medium text-orange-700">
+                          -{desconto.percentual_aplicado}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground bg-gray-50 p-2 rounded">
+                    Nenhum desconto selecionado
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ============================================================================ */}
+            {/* SISTEMA UNIFICADO: Mostrar cálculos centralizados */}
+            {/* ============================================================================ */}
+            {calculatedTotals && calculationValid ? (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="default" className="bg-green-600">
+                    ✅ Cálculos Unificados
+                  </Badge>
+                  {isLoading && (
+                    <Badge variant="outline" className="animate-pulse">
+                      Atualizando...
+                    </Badge>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Subtotal descontos:</span>
+                    <p className="font-medium">{calculatedTotals.subtotal_percentual}%</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Desconto aplicado:</span>
+                    <p className="font-medium text-green-700">{calculatedTotals.percentual_aplicado}%</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Valor base:</span>
+                    <p className="font-mono">R$ {calculatedTotals.valor_base.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Valor final:</span>
+                    <p className="font-mono font-bold text-green-600">R$ {calculatedTotals.valor_final.toFixed(2)}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Economia total:</span>
+                    <p className="font-medium text-green-600">
+                      R$ {calculatedTotals.valor_desconto.toFixed(2)} (mensal) • 
+                      R$ {calculatedTotals.economia_anual.toFixed(2)} (anual)
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Informações do CAP aplicado */}
+                {calculatedTotals.trilho_info?.cap_aplicado && (
+                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                    <AlertCircle className="h-3 w-3 inline mr-1" />
+                    CAP de {calculatedTotals.trilho_info.cap}% aplicado pelo trilho {calculatedTotals.trilho_info.id}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* FALLBACK: Sistema antigo */
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="border-orange-300 text-orange-700">
+                    ⚠️ Sistema Antigo
+                  </Badge>
+                </div>
+                <DiscountSummary baseMensal={baseMensal} descontos={descontosMerged} />
+              </div>
+            )}
+            
             {hasComExtra && (
-              <p className="text-xs text-muted-foreground">
-                Nota: Há um desconto comercial extra (negociação). A Diretoria Administrativa avaliará de forma mais contundente este desconto.
+              <p className="text-xs text-muted-foreground bg-amber-50 p-2 rounded border-l-2 border-amber-400">
+                <strong>Nota:</strong> Há um desconto comercial extra (negociação). A Diretoria Administrativa avaliará de forma mais contundente este desconto.
               </p>
             )}
           </CardContent>

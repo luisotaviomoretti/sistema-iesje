@@ -1,0 +1,609 @@
+import React, { createContext, useContext, useMemo, useState, useCallback } from "react";
+import type { Desconto, Matricula, Student, MatriculaCompleta, EscolaInfo, ResponsavelCompleto } from "../types";
+import type { TrilhoNome, CalculoDesconto, TipoDesconto } from "@/lib/supabase";
+import { calculateTotals } from "../utils/discounts";
+import { TIPOS_DESCONTO } from "../constants";
+
+interface EnrollmentState {
+  flow?: "rematricula" | "nova";
+  step: number;
+  selectedStudent?: Student | null;
+  escola?: "pelicano" | "sete_setembro" | null;
+  matricula?: Partial<MatriculaCompleta>;
+  enderecoAluno?: {
+    cep?: string;
+    logradouro?: string;
+    numero?: string;
+    complemento?: string;
+    bairro?: string;
+    cidade?: string;
+    uf?: string;
+  };
+  descontos: Partial<Desconto>[];
+  responsaveis?: {
+    principal?: {
+      nome_completo?: string;
+      cpf?: string;
+      telefone_principal?: string;
+      email?: string;
+      grau_parentesco?: string;
+      profissao?: string;
+      telefone_secundario?: string;
+    };
+    secundario?: {
+      nome_completo?: string;
+      cpf?: string;
+      telefone_principal?: string;
+      email?: string;
+      grau_parentesco?: string;
+      profissao?: string;
+      telefone_secundario?: string;
+    };
+  };
+  
+  // ============================================================================
+  // CÁLCULOS FINANCEIROS CENTRALIZADOS - FONTE ÚNICA DE VERDADE
+  // ============================================================================
+  calculosFinanceiros?: {
+    valorBaseComMaterial: number;
+    valorBaseSemMaterial: number;
+    valorMaterial: number;
+    totalDescontoPercentual: number;
+    totalDescontoValor: number;
+    valorFinal: number;
+    capUtilizado: number;
+    capMaximo: number;
+    capAtingido: boolean;
+    descontosDetalhes: {
+      codigo: string;
+      descricao: string;
+      percentual: number;
+      valorDesconto: number;
+      isBolsaIntegral: boolean;
+    }[];
+    // ============================================================================
+    // FASE 2: INFORMAÇÕES APRIMORADAS DE CAP
+    // ============================================================================
+    temBolsaIntegral: boolean;
+    explicacaoCAP: string;
+    cenarioCAP: 'bolsa_integral' | 'bolsa_com_outros' | 'regulares_comerciais';
+    ultimaAtualizacao: string;
+  };
+  // Sistema de Trilhos
+  trilhos?: {
+    trilho_escolhido?: TrilhoNome | null;
+    trilho_sugerido?: TrilhoNome | null;
+    descontos_aplicados?: TipoDesconto[];
+    calculo_atual?: CalculoDesconto | null;
+    valor_base?: number;
+    tem_responsavel_secundario?: boolean;
+  };
+  
+  // ============================================================================
+  // DADOS EXPANDIDOS PARA RESUMO PROFISSIONAL  
+  // ============================================================================
+  
+  // Informações da escola selecionada
+  escolaInfo?: EscolaInfo;
+  
+  // Protocolo e timestamps
+  protocolo?: string;
+  dataInicioProcesso?: string;
+  dataUltimaAtualizacao?: string;
+  
+  // Status e aprovações
+  statusGeral?: "RASCUNHO" | "PENDENTE_APROVACAO" | "APROVADA" | "REJEITADA";
+  aprovacaoStatus?: "PENDENTE" | "PARCIAL" | "COMPLETA";
+  
+  // Documentação
+  documentosNecessarios?: string[];
+  documentosPendentes?: string[];
+  
+  // Observações gerais
+  observacoesGerais?: string;
+}
+
+interface EnrollmentActions {
+  setFlow: (f: EnrollmentState["flow"]) => void;
+  setSelectedStudent: (s: Student | null) => void;
+  setEscola: (escola: EnrollmentState["escola"]) => void;
+  setMatricula: (m: Partial<MatriculaCompleta>) => void;
+  setEnderecoAluno: (e: NonNullable<EnrollmentState["enderecoAluno"]>) => void;
+  setResponsaveis: (r: NonNullable<EnrollmentState["responsaveis"]>) => void;
+  addDesconto: (d: Partial<Desconto>) => void;
+  removeDesconto: (codigo: string) => void;
+  removeDescontoById: (id: string) => void;
+  nextStep: () => void;
+  prevStep: () => void;
+  reset: () => void;
+  // Ações para trilhos
+  setTrilhoEscolhido: (trilho: TrilhoNome | null) => void;
+  setTrilhoSugerido: (trilho: TrilhoNome | null) => void;
+  setDescontosAplicados: (descontos: TipoDesconto[]) => void;
+  setCalculoAtual: (calculo: CalculoDesconto | null) => void;
+  setValorBase: (valor: number) => void;
+  setTemResponsavelSecundario: (tem: boolean) => void;
+  updateTrilhos: (updates: Partial<NonNullable<EnrollmentState["trilhos"]>>) => void;
+  
+  // ============================================================================
+  // AÇÕES PARA DADOS EXPANDIDOS
+  // ============================================================================
+  
+  // Escola
+  setEscolaInfo: (info: EscolaInfo) => void;
+  
+  // Protocolo e timestamps
+  setProtocolo: (protocolo: string) => void;
+  setDataInicioProcesso: (data: string) => void;
+  updateDataUltimaAtualizacao: () => void;
+  
+  // Status
+  setStatusGeral: (status: EnrollmentState["statusGeral"]) => void;
+  setAprovacaoStatus: (status: EnrollmentState["aprovacaoStatus"]) => void;
+  
+  // Documentação
+  setDocumentosNecessarios: (docs: string[]) => void;
+  setDocumentosPendentes: (docs: string[]) => void;
+  
+  // Observações
+  setObservacoesGerais: (obs: string) => void;
+  
+  // Função utilitária para gerar protocolo único
+  generateProtocolo: () => string;
+  
+  // ============================================================================
+  // AÇÕES PARA CÁLCULOS FINANCEIROS CENTRALIZADOS
+  // ============================================================================
+  
+  // Calcular e armazenar dados financeiros - FONTE ÚNICA DE VERDADE
+  calculateAndStoreFinancials: () => void;
+  
+  // Forçar recálculo quando necessário
+  recalculateFinancials: () => void;
+}
+
+const EnrollmentContext = createContext<(EnrollmentState & EnrollmentActions) | undefined>(
+  undefined
+);
+
+export const EnrollmentProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const [state, setState] = useState<EnrollmentState>({ 
+    step: 0, 
+    descontos: [],
+    trilhos: {
+      trilho_escolhido: null,
+      trilho_sugerido: null,
+      descontos_aplicados: [],
+      calculo_atual: null,
+      valor_base: 0,
+      tem_responsavel_secundario: false
+    },
+    // Inicializar novos campos
+    statusGeral: "RASCUNHO",
+    aprovacaoStatus: "PENDENTE",
+    documentosNecessarios: [],
+    documentosPendentes: [],
+    dataInicioProcesso: new Date().toISOString(),
+  });
+
+  const setFlow = useCallback<EnrollmentActions["setFlow"]>((f) => {
+    setState((s) => (s.flow === f ? s : { ...s, flow: f }));
+  }, []);
+
+  const setSelectedStudent = useCallback<EnrollmentActions["setSelectedStudent"]>((selectedStudent) => {
+    setState((s) => ({ ...s, selectedStudent }));
+  }, []);
+
+  const setEscola = useCallback<EnrollmentActions["setEscola"]>((escola) => {
+    setState((s) => ({ ...s, escola }));
+  }, []);
+
+  const setMatricula = useCallback<EnrollmentActions["setMatricula"]>((m) => {
+    setState((s) => ({ ...s, matricula: { ...s.matricula, ...m } }));
+  }, []);
+
+const setEnderecoAluno = useCallback<EnrollmentActions["setEnderecoAluno"]>((e) => {
+  setState((s) => ({ ...s, enderecoAluno: { ...(s.enderecoAluno ?? {}), ...e } }));
+}, []);
+
+const setResponsaveis = useCallback<EnrollmentActions["setResponsaveis"]>((r) => {
+  setState((s) => ({ ...s, responsaveis: { ...(s.responsaveis ?? {}), ...r } }));
+}, []);
+
+  const addDesconto = useCallback<EnrollmentActions["addDesconto"]>((d) => {
+    setState((s) => ({ ...s, descontos: [...s.descontos, d] }));
+  }, []);
+
+  const removeDesconto = useCallback<EnrollmentActions["removeDesconto"]>((codigo) => {
+    setState((s) => ({ ...s, descontos: s.descontos.filter((x) => x.codigo_desconto !== codigo) }));
+  }, []);
+
+  const removeDescontoById = useCallback<EnrollmentActions["removeDescontoById"]>((id) => {
+    setState((s) => ({ ...s, descontos: s.descontos.filter((x) => x.id !== id) }));
+  }, []);
+
+  const nextStep = useCallback<EnrollmentActions["nextStep"]>(() => {
+    setState((s) => ({ ...s, step: s.step + 1 }));
+  }, []);
+
+  const prevStep = useCallback<EnrollmentActions["prevStep"]>(() => {
+    setState((s) => ({ ...s, step: Math.max(0, s.step - 1) }));
+  }, []);
+
+  const reset = useCallback<EnrollmentActions["reset"]>(() => {
+    setState({ 
+      step: 0, 
+      descontos: [],
+      trilhos: {
+        trilho_escolhido: null,
+        trilho_sugerido: null,
+        descontos_aplicados: [],
+        calculo_atual: null,
+        valor_base: 0,
+        tem_responsavel_secundario: false
+      },
+      // Reset dos novos campos
+      statusGeral: "RASCUNHO",
+      aprovacaoStatus: "PENDENTE",
+      documentosNecessarios: [],
+      documentosPendentes: [],
+      dataInicioProcesso: new Date().toISOString(),
+      dataUltimaAtualizacao: undefined,
+      protocolo: undefined,
+      escolaInfo: undefined,
+      observacoesGerais: undefined,
+    });
+  }, []);
+
+  // Ações para trilhos
+  const setTrilhoEscolhido = useCallback<EnrollmentActions["setTrilhoEscolhido"]>((trilho) => {
+    setState((s) => ({
+      ...s,
+      trilhos: { ...s.trilhos, trilho_escolhido: trilho }
+    }));
+  }, []);
+
+  const setTrilhoSugerido = useCallback<EnrollmentActions["setTrilhoSugerido"]>((trilho) => {
+    setState((s) => ({
+      ...s,
+      trilhos: { ...s.trilhos, trilho_sugerido: trilho }
+    }));
+  }, []);
+
+  const setDescontosAplicados = useCallback<EnrollmentActions["setDescontosAplicados"]>((descontos) => {
+    setState((s) => ({
+      ...s,
+      trilhos: { ...s.trilhos, descontos_aplicados: descontos }
+    }));
+  }, []);
+
+  const setCalculoAtual = useCallback<EnrollmentActions["setCalculoAtual"]>((calculo) => {
+    setState((s) => ({
+      ...s,
+      trilhos: { ...s.trilhos, calculo_atual: calculo }
+    }));
+  }, []);
+
+  const setValorBase = useCallback<EnrollmentActions["setValorBase"]>((valor) => {
+    setState((s) => ({
+      ...s,
+      trilhos: { ...s.trilhos, valor_base: valor }
+    }));
+  }, []);
+
+  const setTemResponsavelSecundario = useCallback<EnrollmentActions["setTemResponsavelSecundario"]>((tem) => {
+    setState((s) => ({
+      ...s,
+      trilhos: { ...s.trilhos, tem_responsavel_secundario: tem }
+    }));
+  }, []);
+
+  const updateTrilhos = useCallback<EnrollmentActions["updateTrilhos"]>((updates) => {
+    setState((s) => ({
+      ...s,
+      trilhos: { ...s.trilhos, ...updates }
+    }));
+  }, []);
+
+  // ============================================================================
+  // IMPLEMENTAÇÃO DAS NOVAS AÇÕES
+  // ============================================================================
+
+  // Escola
+  const setEscolaInfo = useCallback<EnrollmentActions["setEscolaInfo"]>((info) => {
+    setState((s) => ({ ...s, escolaInfo: info }));
+  }, []);
+
+  // Protocolo e timestamps
+  const setProtocolo = useCallback<EnrollmentActions["setProtocolo"]>((protocolo) => {
+    setState((s) => ({ ...s, protocolo }));
+  }, []);
+
+  const setDataInicioProcesso = useCallback<EnrollmentActions["setDataInicioProcesso"]>((data) => {
+    setState((s) => ({ ...s, dataInicioProcesso: data }));
+  }, []);
+
+  const updateDataUltimaAtualizacao = useCallback<EnrollmentActions["updateDataUltimaAtualizacao"]>(() => {
+    setState((s) => ({ ...s, dataUltimaAtualizacao: new Date().toISOString() }));
+  }, []);
+
+  // Status
+  const setStatusGeral = useCallback<EnrollmentActions["setStatusGeral"]>((status) => {
+    setState((s) => ({ ...s, statusGeral: status }));
+  }, []);
+
+  const setAprovacaoStatus = useCallback<EnrollmentActions["setAprovacaoStatus"]>((status) => {
+    setState((s) => ({ ...s, aprovacaoStatus: status }));
+  }, []);
+
+  // Documentação
+  const setDocumentosNecessarios = useCallback<EnrollmentActions["setDocumentosNecessarios"]>((docs) => {
+    setState((s) => ({ ...s, documentosNecessarios: docs }));
+  }, []);
+
+  const setDocumentosPendentes = useCallback<EnrollmentActions["setDocumentosPendentes"]>((docs) => {
+    setState((s) => ({ ...s, documentosPendentes: docs }));
+  }, []);
+
+  // Observações
+  const setObservacoesGerais = useCallback<EnrollmentActions["setObservacoesGerais"]>((obs) => {
+    setState((s) => ({ ...s, observacoesGerais: obs }));
+  }, []);
+
+  // Função utilitária para gerar protocolo único
+  const generateProtocolo = useCallback<EnrollmentActions["generateProtocolo"]>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const time = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+    const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+    
+    const protocolo = `IESJE${year}${month}${day}${time}${random}`;
+    setProtocolo(protocolo);
+    return protocolo;
+  }, [setProtocolo]);
+
+  // ============================================================================
+  // IMPLEMENTAÇÃO DE CÁLCULOS FINANCEIROS CENTRALIZADOS
+  // ============================================================================
+  
+  const calculateAndStoreFinancials = useCallback<EnrollmentActions["calculateAndStoreFinancials"]>(() => {
+    console.log('🔥 CENTRALIZED CALCULATION: Iniciando cálculo único...');
+    
+    // Obter dados base
+    const valorBaseSemMaterial = Number(state.matricula?.serie_dados?.valor_mensal_sem_material || 0);
+    const valorComMaterial = Number(state.matricula?.serie_dados?.valor_mensal_com_material || 0);
+    const valorMaterial = Number(state.matricula?.serie_dados?.valor_material || 0);
+    
+    if (valorBaseSemMaterial <= 0 || valorComMaterial <= 0) {
+      console.log('❌ CENTRALIZED CALCULATION: Valores base inválidos', {
+        valorBaseSemMaterial, valorComMaterial, valorMaterial
+      });
+      return;
+    }
+
+    // ============================================================================
+    // LÓGICA DE CAP INTELIGENTE COM TRILHOS - CORREÇÃO DEFINITIVA
+    // ============================================================================
+    
+    // Bolsas integrais que NÃO devem ter CAP (exceto quando há restrição do trilho)
+    const BOLSAS_INTEGRAIS_SEM_CAP = ['PASS', 'ABI'];
+    
+    // Verificar tipos de desconto presentes
+    const descontosDetalhados = state.descontos.map(d => ({
+      codigo: d.codigo_desconto || '',
+      percentual: d.percentual_aplicado || 0,
+      isBolsaIntegral: BOLSAS_INTEGRAIS_SEM_CAP.includes(d.codigo_desconto || '')
+    }));
+    
+    const temBolsaIntegral = descontosDetalhados.some(d => d.isBolsaIntegral);
+    const temOutrosDescontos = descontosDetalhados.some(d => !d.isBolsaIntegral);
+    
+    // 🚨 FIX: CONSIDERAR O CAP DO TRILHO SELECIONADO PRIMEIRO!
+    const trilhoEscolhido = state.trilhos?.trilho_escolhido;
+    let capMaximo: number;
+    let explicacaoCAP: string;
+    let cenarioCAP: 'bolsa_integral' | 'bolsa_com_outros' | 'regulares_comerciais' | 'trilho_especifico';
+    
+    // PRIORIDADE 1: CAP do trilho (se definido e selecionado)
+    if (trilhoEscolhido) {
+      const capTrilho = state.trilhos?.cap_maximo;
+      
+      if (trilhoEscolhido === 'especial' && (capTrilho === null || capTrilho === undefined)) {
+        // Trilho especial sem limite de CAP
+        capMaximo = 100;
+        explicacaoCAP = 'Trilho Especial - sem limite de CAP';
+        cenarioCAP = 'trilho_especifico';
+      } else if (capTrilho && capTrilho > 0) {
+        // Trilho com CAP definido
+        capMaximo = capTrilho;
+        explicacaoCAP = `Trilho ${trilhoEscolhido} - CAP máximo ${capTrilho}%`;
+        cenarioCAP = 'trilho_especifico';
+      } else {
+        // Fallback para lógica antiga se trilho não tem CAP configurado
+        if (temBolsaIntegral && !temOutrosDescontos) {
+          capMaximo = 100;
+          explicacaoCAP = 'Bolsa integral aplicada - sem limite de CAP';
+          cenarioCAP = 'bolsa_integral';
+        } else if (temBolsaIntegral && temOutrosDescontos) {
+          capMaximo = 100;
+          explicacaoCAP = 'Bolsa integral prevalece - outros descontos não se aplicam';
+          cenarioCAP = 'bolsa_com_outros';
+        } else {
+          capMaximo = 60;
+          explicacaoCAP = 'Descontos regulares/comerciais - CAP máximo de 60%';
+          cenarioCAP = 'regulares_comerciais';
+        }
+      }
+    } else {
+      // PRIORIDADE 2: Lógica antiga quando não há trilho selecionado
+      if (temBolsaIntegral && !temOutrosDescontos) {
+        capMaximo = 100;
+        explicacaoCAP = 'Bolsa integral aplicada - sem limite de CAP';
+        cenarioCAP = 'bolsa_integral';
+      } else if (temBolsaIntegral && temOutrosDescontos) {
+        capMaximo = 100;
+        explicacaoCAP = 'Bolsa integral prevalece - outros descontos não se aplicam';
+        cenarioCAP = 'bolsa_com_outros';
+      } else {
+        capMaximo = 60;
+        explicacaoCAP = 'Descontos regulares/comerciais - CAP máximo de 60%';
+        cenarioCAP = 'regulares_comerciais';
+      }
+    }
+    
+    console.log('🎯 CENTRALIZED CALCULATION: Configuração de desconto', {
+      temBolsaIntegral,
+      temOutrosDescontos,
+      trilhoEscolhido,
+      capTrilho: state.trilhos?.cap_maximo,
+      capMaximo,
+      explicacaoCAP,
+      cenarioCAP,
+      descontosDetalhados,
+      totalDescontos: state.descontos.length
+    });
+
+    // Calcular com limite correto
+    const summary = calculateTotals(
+      valorBaseSemMaterial, 
+      state.descontos as any, 
+      TIPOS_DESCONTO, 
+      capMaximo  // <- Este é o FIX principal!
+    );
+
+    // Preparar detalhes dos descontos
+    const descontosDetalhes = state.descontos.map(d => {
+      const tipo = TIPOS_DESCONTO.find(t => 
+        t.id === d.tipo_desconto_id || t.codigo === d.codigo_desconto
+      );
+      const percentual = d.percentual_aplicado ?? tipo?.percentual_fixo ?? 0;
+      const valorDesconto = (valorBaseSemMaterial * percentual) / 100;
+      
+      return {
+        codigo: d.codigo_desconto || '',
+        descricao: tipo?.descricao || d.codigo_desconto || 'Desconto',
+        percentual: percentual,
+        valorDesconto: valorDesconto,
+        isBolsaIntegral: BOLSAS_INTEGRAIS_SEM_CAP.includes(d.codigo_desconto || '')
+      };
+    });
+
+    // Calcular valores finais corretos
+    const totalDescontoValor = summary.savingsMonthly;
+    const valorFinalSemMaterial = summary.finalValue;
+    const valorFinalComMaterial = valorFinalSemMaterial + valorMaterial;
+
+    const calculosFinanceiros = {
+      valorBaseComMaterial: valorComMaterial,
+      valorBaseSemMaterial: valorBaseSemMaterial,
+      valorMaterial: valorMaterial,
+      totalDescontoPercentual: summary.cappedPercent || 0,
+      totalDescontoValor: totalDescontoValor || 0,
+      valorFinal: valorFinalComMaterial || valorComMaterial,
+      capUtilizado: summary.cappedPercent || 0,
+      capMaximo: capMaximo,
+      capAtingido: summary.capReached || false,
+      descontosDetalhes,
+      // Novas informações aprimoradas de CAP
+      temBolsaIntegral,
+      explicacaoCAP,
+      cenarioCAP,
+      ultimaAtualizacao: new Date().toISOString()
+    };
+
+    console.log('✅ CENTRALIZED CALCULATION: Cálculo finalizado', calculosFinanceiros);
+
+    // Armazenar no estado
+    setState(s => ({ ...s, calculosFinanceiros }));
+  }, [state.matricula, state.descontos]);
+
+  const recalculateFinancials = useCallback<EnrollmentActions["recalculateFinancials"]>(() => {
+    console.log('🔄 RECALCULATING: Forçando recálculo...');
+    calculateAndStoreFinancials();
+  }, [calculateAndStoreFinancials]);
+
+  const value = useMemo(
+    () => ({
+      ...state,
+      setFlow,
+      setSelectedStudent,
+      setEscola,
+      setMatricula,
+      setEnderecoAluno,
+      setResponsaveis,
+      addDesconto,
+      removeDesconto,
+      removeDescontoById,
+      nextStep,
+      prevStep,
+      reset,
+      // Trilhos actions
+      setTrilhoEscolhido,
+      setTrilhoSugerido,
+      setDescontosAplicados,
+      setCalculoAtual,
+      setValorBase,
+      setTemResponsavelSecundario,
+      updateTrilhos,
+      // Novas ações expandidas
+      setEscolaInfo,
+      setProtocolo,
+      setDataInicioProcesso,
+      updateDataUltimaAtualizacao,
+      setStatusGeral,
+      setAprovacaoStatus,
+      setDocumentosNecessarios,
+      setDocumentosPendentes,
+      setObservacoesGerais,
+      generateProtocolo,
+      // Novas ações de cálculos centralizados
+      calculateAndStoreFinancials,
+      recalculateFinancials,
+    }),
+    [
+      state, 
+      setFlow, 
+      setSelectedStudent, 
+      setEscola, 
+      setMatricula, 
+      setEnderecoAluno, 
+      setResponsaveis, 
+      addDesconto, 
+      removeDesconto, 
+      removeDescontoById, 
+      nextStep, 
+      prevStep, 
+      reset,
+      setTrilhoEscolhido,
+      setTrilhoSugerido,
+      setDescontosAplicados,
+      setCalculoAtual,
+      setValorBase,
+      setTemResponsavelSecundario,
+      updateTrilhos,
+      // Novas dependências
+      setEscolaInfo,
+      setProtocolo,
+      setDataInicioProcesso,
+      updateDataUltimaAtualizacao,
+      setStatusGeral,
+      setAprovacaoStatus,
+      setDocumentosNecessarios,
+      setDocumentosPendentes,
+      setObservacoesGerais,
+      generateProtocolo,
+      // Novas dependências de cálculos centralizados
+      calculateAndStoreFinancials,
+      recalculateFinancials,
+    ]
+  );
+  return <EnrollmentContext.Provider value={value}>{children}</EnrollmentContext.Provider>;
+};
+
+export const useEnrollment = () => {
+  const ctx = useContext(EnrollmentContext);
+  if (!ctx) throw new Error("useEnrollment deve ser usado dentro de EnrollmentProvider");
+  return ctx;
+};

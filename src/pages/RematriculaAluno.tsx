@@ -15,12 +15,15 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import type { Desconto, Student, StatusDesconto } from "@/features/enrollment/types";
-import { TIPOS_DESCONTO, SERIES_ANO, proximaSerie, valorBaseParaSerie } from "@/features/enrollment/constants";
+import { TIPOS_DESCONTO, SERIES_ANO, proximaSerie, valorBaseParaSerie, getDynamicNextSerie, getDynamicSerieValue } from "@/features/enrollment/constants";
+import { usePublicSeries } from "@/features/admin/hooks/useSeries";
+import { usePublicDiscountTypes } from "@/features/admin/hooks/useDiscountTypes";
 import { mockDescontos, mockResponsaveis, mockStudents, mockMatriculas, mockEnderecos } from "@/data/mock";
 import { useToast } from "@/hooks/use-toast";
 import { DiscountChecklist } from "@/features/enrollment/components/DiscountChecklist";
 import CepInfo from "@/features/enrollment/components/CepInfo";
-import { classifyCep } from "@/features/enrollment/utils/cep";
+import { classifyCep, classifyCepWithDynamic, describeCepClassWithDynamic, getCepDiscountPercentage, getCepDiscountCode } from "@/features/enrollment/utils/cep";
+import { usePublicCepClassification } from "@/features/admin/hooks/useCepRanges";
 // Removed FinalConfirmation in favor of summary flow
 
 const RematriculaAluno = () => {
@@ -28,6 +31,27 @@ const RematriculaAluno = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { selectedStudent, setSelectedStudent, setMatricula, descontos, addDesconto, removeDesconto, matricula, setEnderecoAluno, enderecoAluno } = useEnrollment();
+  
+  // 🔄 MIGRAÇÃO PROGRESSIVA: Buscar dados dinâmicos
+  const { data: dynamicSeries } = usePublicSeries();
+  const { data: dynamicDiscountTypes } = usePublicDiscountTypes();
+  const { data: dynamicCepClassification } = usePublicCepClassification(cep);
+  
+  // 🎯 FALLBACK: Dados disponíveis (dinâmicos ou estáticos)
+  const availableSeries = useMemo(() => {
+    if (dynamicSeries && dynamicSeries.length > 0) {
+      return dynamicSeries.sort((a, b) => a.ordem - b.ordem);
+    }
+    return SERIES_ANO.map((nome, index) => ({
+      id: `static_${index}`,
+      nome,
+      ano_serie: nome,
+      valor_mensal_com_material: valorBaseParaSerie(nome) || 0,
+      ordem: index + 1,
+      escola: 'Sete de Setembro' as const,
+      ativo: true
+    }));
+  }, [dynamicSeries]);
 
   const aluno: Student | undefined = useMemo(() => {
     if (selectedStudent && selectedStudent.id === id) return selectedStudent;
@@ -41,7 +65,10 @@ const RematriculaAluno = () => {
     return mats.sort((a, b) => b.ano_letivo - a.ano_letivo)[0].serie_ano;
   }, [aluno]);
 
-  const sugestaoProximaSerie = useMemo(() => proximaSerie(serieAtual), [serieAtual]);
+  const sugestaoProximaSerie = useMemo(() => {
+    // 🔄 MIGRAÇÃO PROGRESSIVA: Usar dados dinâmicos se disponíveis
+    return getDynamicNextSerie(serieAtual, dynamicSeries, true);
+  }, [serieAtual, dynamicSeries]);
 
   useEffect(() => {
     // SEO basics
@@ -146,12 +173,12 @@ const RematriculaAluno = () => {
     const s = formAcademic.getValues("serie_ano");
     const baseAtual = Number(formAcademic.getValues("valor_mensalidade_base") || 0);
     if (openAcademic && s && (!baseAtual || baseAtual === 0)) {
-      const base = valorBaseParaSerie(s);
-      if (typeof base === "number") {
+      const base = getDynamicSerieValue(s, dynamicSeries, true);
+      if (typeof base === "number" && base > 0) {
         formAcademic.setValue("valor_mensalidade_base", base, { shouldDirty: true, shouldValidate: true });
       }
     }
-  }, [openAcademic]);
+  }, [openAcademic, dynamicSeries, formAcademic]);
 
   const formDesconto = useForm<z.infer<typeof descontoSchema>>({
     resolver: zodResolver(descontoSchema),
@@ -208,19 +235,12 @@ const RematriculaAluno = () => {
     setOpenEndereco(false);
     const novoCep = values.cep || "";
     setCep(novoCep);
-    const cls = classifyCep(novoCep);
+    const cls = classifyCepWithDynamic(novoCep, dynamicCepClassification, true);
     setCepClass(cls);
     if (applyCep) {
       addOrUpdateCepDiscount(cls);
     }
-    const msg =
-      cls === "fora"
-        ? "Fora de Poços de Caldas — elegível a 10%"
-        : cls === "baixa"
-        ? "Poços (bairro de menor renda) — elegível a 5%"
-        : cls === "alta"
-        ? "Poços (bairro de maior renda) — sem desconto por CEP"
-        : "CEP inválido";
+    const msg = describeCepClassWithDynamic(cls, dynamicCepClassification, true);
     toast({ title: "Endereço atualizado", description: msg });
   });
 
@@ -276,7 +296,7 @@ const RematriculaAluno = () => {
         uf: addr.uf,
       });
       setCep(addr.cep);
-      const cls = classifyCep(addr.cep);
+      const cls = classifyCepWithDynamic(addr.cep, dynamicCepClassification, true);
       setCepClass(cls);
     }
 
@@ -287,7 +307,7 @@ const RematriculaAluno = () => {
         .sort((a, b) => b.ano_letivo - a.ano_letivo);
       const last = mats[0];
       const prox = sugestaoProximaSerie || last?.serie_ano || "";
-      const base = typeof prox === "string" ? valorBaseParaSerie(prox) : 0;
+      const base = typeof prox === "string" ? getDynamicSerieValue(prox, dynamicSeries, true) : 0;
       const turno = last?.turno || "";
       const nextMat = {
         serie_ano: prox,
@@ -303,28 +323,20 @@ const RematriculaAluno = () => {
     // remove anteriores
     removeDesconto("CEP10");
     removeDesconto("CEP5");
-    if (cls === "fora") {
-      const tipo = findTipo("CEP10");
+    
+    // 🎯 FALLBACK INTELIGENTE: Usar dados dinâmicos ou estáticos
+    const percentual = getCepDiscountPercentage(cls, dynamicCepClassification, true);
+    const codigo = getCepDiscountCode(cls, dynamicCepClassification);
+    
+    if (percentual > 0 && codigo) {
+      const tipo = findTipo(codigo);
       if (tipo) {
         addDesconto({
           id: crypto.randomUUID(),
           student_id: aluno.id,
           tipo_desconto_id: tipo.id,
           codigo_desconto: tipo.codigo,
-          percentual_aplicado: tipo.percentual_fixo ?? 10,
-          status_aprovacao: "SOLICITADO" as StatusDesconto,
-          data_solicitacao: new Date().toISOString(),
-        });
-      }
-    } else if (cls === "baixa") {
-      const tipo = findTipo("CEP5");
-      if (tipo) {
-        addDesconto({
-          id: crypto.randomUUID(),
-          student_id: aluno.id,
-          tipo_desconto_id: tipo.id,
-          codigo_desconto: tipo.codigo,
-          percentual_aplicado: tipo.percentual_fixo ?? 5,
+          percentual_aplicado: percentual,
           status_aprovacao: "SOLICITADO" as StatusDesconto,
           data_solicitacao: new Date().toISOString(),
         });
@@ -333,19 +345,21 @@ const RematriculaAluno = () => {
   };
 
   const onVerifyCep = () => {
-    const cls = classifyCep(cep);
+    // 🎯 FALLBACK INTELIGENTE: Usar dados dinâmicos ou estáticos
+    const cls = classifyCepWithDynamic(cep, dynamicCepClassification, true);
     setCepClass(cls);
     if (!cls) {
       toast({ title: "CEP inválido", description: "Informe um CEP com 8 dígitos." });
       return;
     }
-    const msg =
-      cls === "fora"
-        ? "Fora de Poços de Caldas — elegível a 10%"
-        : cls === "baixa"
-        ? "Poços (bairro de menor renda) — elegível a 5%"
-        : "Poços (bairro de maior renda) — sem desconto por CEP";
-    toast({ title: "Verificação de CEP", description: msg });
+    
+    const msg = describeCepClassWithDynamic(cls, dynamicCepClassification, true);
+    const dynamicIndicator = dynamicCepClassification?.categoria === cls ? " (Dados sincronizados)" : " (Dados locais)";
+    
+    toast({ 
+      title: "Verificação de CEP", 
+      description: `${msg}${dynamicIndicator}` 
+    });
     if (applyCep) addOrUpdateCepDiscount(cls);
   };
 
@@ -476,10 +490,25 @@ const RematriculaAluno = () => {
             <CardTitle>Acadêmicos</CardTitle>
             <Button size="sm" variant="secondary" onClick={() => setOpenAcademic(true)}>Editar</Button>
           </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <div><span className="text-muted-foreground">Série/Ano: </span>{matricula?.serie_ano || "—"}</div>
-            <div><span className="text-muted-foreground">Turno: </span>{matricula?.turno || "—"}</div>
-            <div><span className="text-muted-foreground">Mensalidade Base: </span>{matricula?.valor_mensalidade_base ? `R$ ${Number(matricula.valor_mensalidade_base).toFixed(2)}` : "—"}</div>
+          <CardContent className="space-y-3">
+            <div className="space-y-1 text-sm">
+              <div><span className="text-muted-foreground">Série/Ano: </span>{matricula?.serie_ano || "—"}</div>
+              <div><span className="text-muted-foreground">Turno: </span>{matricula?.turno || "—"}</div>
+              <div><span className="text-muted-foreground">Mensalidade Base: </span>{matricula?.valor_mensalidade_base ? `R$ ${Number(matricula.valor_mensalidade_base).toFixed(2)}` : "—"}</div>
+            </div>
+            
+            {/* 📊 Status da Sincronização */}
+            <div className="pt-2 border-t flex items-center justify-between text-xs text-muted-foreground">
+              <div className="flex items-center space-x-1">
+                <div className={`w-1.5 h-1.5 rounded-full ${dynamicSeries?.length > 0 ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                <span>
+                  {dynamicSeries?.length > 0 ? 
+                    `✅ Séries sincronizadas (${dynamicSeries.length})` : 
+                    `⚠️ Usando dados locais (${SERIES_ANO.length})`
+                  }
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -770,6 +799,19 @@ const RematriculaAluno = () => {
           <DialogHeader>
             <DialogTitle>Editar dados acadêmicos</DialogTitle>
           </DialogHeader>
+          
+          {/* 📊 Status da Sincronização */}
+          <div className="flex items-center justify-between p-2 bg-muted/20 rounded-md text-xs mb-4">
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${dynamicSeries?.length > 0 ? 'bg-green-500' : 'bg-yellow-500'}`} />
+              <span>
+                {dynamicSeries?.length > 0 ? 
+                  `✅ Séries sincronizadas (${dynamicSeries.length} séries)` : 
+                  `⚠️ Usando dados locais (${SERIES_ANO.length} séries)`
+                }
+              </span>
+            </div>
+          </div>
           <Form {...formAcademic}>
             <form onSubmit={handleSaveAcademic} className="space-y-4">
               <FormField
@@ -780,8 +822,8 @@ const RematriculaAluno = () => {
                     <FormLabel>Série/Ano</FormLabel>
                     <Select value={field.value} onValueChange={(val) => {
                       field.onChange(val);
-                      const base = valorBaseParaSerie(val);
-                      if (typeof base === "number") {
+                      const base = getDynamicSerieValue(val, dynamicSeries, true);
+                      if (typeof base === "number" && base > 0) {
                         formAcademic.setValue("valor_mensalidade_base", base, { shouldDirty: true, shouldValidate: true });
                       }
                     }}>
@@ -791,8 +833,22 @@ const RematriculaAluno = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="z-50">
-                        {SERIES_ANO.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        {availableSeries.map((serie) => (
+                          <SelectItem key={serie.id || serie.ano_serie} value={serie.ano_serie}>
+                            <div className="flex items-center justify-between w-full">
+                              <span>{serie.nome}</span>
+                              <div className="flex items-center space-x-1 ml-2">
+                                <Badge variant="outline" className="text-xs">
+                                  R$ {serie.valor_mensal_com_material?.toFixed(2) || '0.00'}
+                                </Badge>
+                                {dynamicSeries?.length > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                    {serie.escola}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

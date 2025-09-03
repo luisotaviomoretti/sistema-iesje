@@ -6,6 +6,9 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { calculateTotals } from "@/features/enrollment/utils/discounts";
 import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
 import { readRecent, clearRecent, type StoredEnrollment } from "@/features/enrollment/utils/recent-enrollments";
+import { usePublicDiscountTypes } from "@/features/admin/hooks/useDiscountTypes";
+import { useMaxDiscountLimit } from "@/features/admin/hooks/useEnrollmentConfig";
+import { TIPOS_DESCONTO, MAX_DESCONTO_TOTAL } from "@/features/enrollment/constants";
 import { Download, Trash2, ArrowLeft } from "lucide-react";
 
 const BRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -13,6 +16,17 @@ const BRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", curren
 const MatriculasRecentes: React.FC = () => {
   const [items, setItems] = useState<StoredEnrollment[]>([]);
   const location = useLocation();
+  
+  // 🔄 MIGRAÇÃO PROGRESSIVA: Dados dinâmicos do admin
+  const { data: dynamicDiscountTypes } = usePublicDiscountTypes();
+  const { data: maxDiscountLimit } = useMaxDiscountLimit();
+  
+  // 🎯 FALLBACK INTELIGENTE
+  const discountTypes = useMemo(() => {
+    return dynamicDiscountTypes?.length > 0 ? dynamicDiscountTypes : TIPOS_DESCONTO;
+  }, [dynamicDiscountTypes]);
+  
+  const effectiveMaxDiscount = maxDiscountLimit ?? MAX_DESCONTO_TOTAL;
 
   useEffect(() => {
     setItems(readRecent());
@@ -48,6 +62,8 @@ const MatriculasRecentes: React.FC = () => {
       descontos: row.descontos as any,
       baseMensal: base,
       responsaveis: row.responsaveis as any,
+      discountTypes,
+      maxDiscountLimit: effectiveMaxDiscount,
     });
   };
 
@@ -97,7 +113,7 @@ const MatriculasRecentes: React.FC = () => {
                 <TableBody>
                   {items.map((it) => {
                     const base = Number(it.matricula?.valor_mensalidade_base || 0);
-                    const totals = calculateTotals(base, it.descontos as any);
+                    const totals = calculateTotals(base, it.descontos as any, discountTypes, effectiveMaxDiscount);
                     const serieTurno = `${it.matricula?.serie_ano || "—"} / ${it.matricula?.turno || "—"}`;
 
                     return (

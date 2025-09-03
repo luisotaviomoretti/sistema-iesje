@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import WizardProgress from "@/features/enrollment/wizard/WizardProgress";
@@ -8,9 +8,7 @@ import StepAcademicos from "@/features/enrollment/wizard/steps/StepAcademicos";
 import StepDescontos from "@/features/enrollment/wizard/steps/StepDescontos";
 import StepEndereco from "@/features/enrollment/wizard/steps/StepEndereco";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
-import { useLocalDraft, clearDraft } from "@/features/enrollment/wizard/useLocalDraft";
 import { useToast } from "@/hooks/use-toast";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 const steps = ["Dados do Aluno", "Responsáveis", "Endereço do Aluno", "Acadêmicos", "Descontos"];
 
@@ -19,8 +17,6 @@ const NovaMatriculaPage = () => {
   const { step, setFlow, nextStep, prevStep, setMatricula, matricula, selectedStudent, reset, setSelectedStudent, setEnderecoAluno, enderecoAluno } = useEnrollment();
   const [current, setCurrent] = useState(0);
   const { toast } = useToast();
-  const [resumeOpen, setResumeOpen] = useState(false);
-  const [resumeData, setResumeData] = useState<any>(null);
 
   // SEO basics
   useEffect(() => {
@@ -37,43 +33,34 @@ const NovaMatriculaPage = () => {
 
   useEffect(() => setFlow("nova"), [setFlow]);
 
-  const draftData = useMemo(() => ({ step: current, matricula, selectedStudent, enderecoAluno }), [current, matricula, selectedStudent, enderecoAluno]);
-  useLocalDraft("nova-matricula", draftData, (loaded) => {
-    if (loaded && (typeof (loaded as any).step === "number" || (loaded as any).matricula || (loaded as any).selectedStudent)) {
-      setResumeData(loaded);
-      setResumeOpen(true);
-    }
-  });
-
   const goNext = useCallback(() => { setCurrent((s) => Math.min(steps.length - 1, s + 1)); nextStep(); }, [nextStep]);
   const goPrev = useCallback(() => { setCurrent((s) => Math.max(0, s - 1)); prevStep(); }, [prevStep]);
 
   const onSaveAcademics = (v: any) => setMatricula(v);
 
-  const baseMensal = Number(matricula?.valor_mensalidade_base || 0);
+  // Valores detalhados da série selecionada
+  const serieValues = useMemo(() => {
+    const valorComMaterial = Number(matricula?.valor_mensalidade_base || 0);
+    // Para compatibilidade com dados existentes, assumir 15% como valor típico do material
+    const valorMaterial = valorComMaterial * 0.15;
+    const valorSemMaterial = valorComMaterial - valorMaterial;
+    
+    return {
+      valorComMaterial,
+      valorMaterial,
+      valorSemMaterial
+    };
+  }, [matricula?.valor_mensalidade_base]);
 
   const handleStartFresh = () => {
-    clearDraft("nova-matricula");
     reset();
     setSelectedStudent(null);
     setCurrent(0);
-    setResumeOpen(false);
-    toast({ title: "Wizard reiniciado", description: "Rascunho limpo e começando do zero." });
-  };
-
-  const handleResume = () => {
-    const stepTo = Math.min(steps.length - 1, Math.max(0, Number(resumeData?.step ?? 0)));
-    if (resumeData?.selectedStudent) setSelectedStudent(resumeData.selectedStudent as any);
-    if (resumeData?.matricula) setMatricula(resumeData.matricula as any);
-    if (resumeData?.enderecoAluno) setEnderecoAluno(resumeData.enderecoAluno as any);
-    setCurrent(stepTo);
-    setResumeOpen(false);
-    toast({ title: "Rascunho retomado", description: `Voltamos para a etapa ${stepTo + 1}.` });
+    toast({ title: "Wizard reiniciado", description: "Começando do zero." });
   };
 
 const finish = () => {
     toast({ title: "Matrícula concluída", description: "Redirecionando para a página inicial..." });
-    clearDraft("nova-matricula");
     reset();
     setSelectedStudent(null);
     setCurrent(0);
@@ -85,26 +72,11 @@ const finish = () => {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Nova Matrícula</h1>
-            <p className="text-sm text-muted-foreground">Preencha as etapas. O progresso é salvo automaticamente.</p>
+            <p className="text-sm text-muted-foreground">Preencha as etapas do wizard de matrícula.</p>
           </div>
-          <Button variant="outline" onClick={handleStartFresh}>Reiniciar do zero</Button>
+          <Button variant="outline" onClick={handleStartFresh}>Reiniciar</Button>
         </div>
       </header>
-
-      <AlertDialog open={resumeOpen} onOpenChange={setResumeOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Retomar rascunho?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Encontramos um rascunho salvo desta matrícula. Você deseja retomar de onde parou ou começar do zero?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleStartFresh}>Começar do zero</AlertDialogCancel>
-            <AlertDialogAction onClick={handleResume}>Retomar</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <WizardProgress steps={steps} current={current} />
       <Card>
@@ -116,7 +88,7 @@ const finish = () => {
           {current === 1 && <StepResponsaveis onPrev={goPrev} onNext={goNext} />}
           {current === 2 && <StepEndereco onPrev={goPrev} onNext={goNext} />}
           {current === 3 && <StepAcademicos onPrev={goPrev} onNext={goNext} onSave={onSaveAcademics} />}
-          {current === 4 && <StepDescontos onPrev={goPrev} onFinish={() => navigate("/nova-matricula/resumo")} baseMensal={baseMensal} />}
+          {current === 4 && <StepDescontos onPrev={goPrev} onFinish={() => navigate("/nova-matricula/resumo")} baseMensal={serieValues?.valor_mensal_sem_material || 0} />}
         </CardContent>
       </Card>
     </main>

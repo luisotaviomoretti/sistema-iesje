@@ -7,7 +7,18 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
 import { useToast } from "@/hooks/use-toast";
-import { classifyCep, describeCepClass } from "@/features/enrollment/utils/cep";
+import { 
+  classifyCep, 
+  describeCepClass, 
+  classifyCepWithDynamic, 
+  describeCepClassWithDynamic, 
+  getCepDiscountPercentage,
+  fetchAddress,
+  isPocosDeCaldas,
+  autoClassifyByCidade,
+  type AddressInfo
+} from "@/features/enrollment/utils/cep";
+import { usePublicCepClassification } from "@/features/admin/hooks/useCepRanges";
 
 const enderecoSchema = z.object({
   cep: z.string().min(8, "Informe o CEP"),
@@ -42,8 +53,13 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
 
   // CEP auto-fill state and effect
   const [isFetchingCep, setIsFetchingCep] = useState(false);
+  const [addressInfo, setAddressInfo] = useState<AddressInfo | null>(null);
+  const [autoClassification, setAutoClassification] = useState<string>("");
   const lastCepRef = useRef<string>("");
   const cepValue = form.watch("cep");
+  
+  // 🔄 MIGRAÇÃO PROGRESSIVA: Buscar dados dinâmicos do admin
+  const { data: dynamicClassification, isLoading: cepLoading } = usePublicCepClassification(cepValue);
 
   useEffect(() => {
     const raw = cepValue || "";
@@ -53,65 +69,75 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
     lastCepRef.current = digits;
     setIsFetchingCep(true);
 
-    const fetchViaCep = async () => {
-      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
-      if (!res.ok) throw new Error("viacep");
-      const data = await res.json();
-      if (data?.erro) return null;
-      return {
-        logradouro: data?.logradouro || "",
-        bairro: data?.bairro || "",
-        cidade: data?.localidade || "",
-        uf: data?.uf || "",
-      } as const;
-    };
-
-    const fetchBrasilApi = async () => {
-      const res = await fetch(`https://brasilapi.com.br/api/cep/v1/${digits}`);
-      if (!res.ok) throw new Error("brasilapi");
-      const data = await res.json();
-      return {
-        logradouro: data?.street || "",
-        bairro: data?.neighborhood || "",
-        cidade: data?.city || "",
-        uf: data?.state || "",
-      } as const;
-    };
-
     (async () => {
       try {
-        let addr = await fetchViaCep();
-        if (!addr) addr = await fetchBrasilApi();
+        // 🚀 FASE 2: Usar nova função fetchAddress
+        const addr = await fetchAddress(digits);
 
         if (addr) {
+          // Armazenar informações do endereço
+          setAddressInfo(addr);
+          
+          // 🎯 NOVA LÓGICA: Classificação automática baseada na cidade
+          const autoClass = autoClassifyByCidade(addr.cidade);
+          setAutoClassification(autoClass);
+          
+          // Preencher formulário
           form.setValue("logradouro", addr.logradouro, { shouldDirty: true });
           form.setValue("bairro", addr.bairro, { shouldDirty: true });
           form.setValue("cidade", addr.cidade, { shouldDirty: true });
           form.setValue("uf", addr.uf, { shouldDirty: true });
-          toast({ title: "Endereço preenchido", description: "Preenchido automaticamente via CEP." });
+          
+          // Toast com classificação automática
+          const isPocos = isPocosDeCaldas(addr.cidade);
+          const message = isPocos 
+            ? "Endereço preenchido. CEP de Poços de Caldas - você poderá selecionar a classificação no painel administrativo."
+            : `Endereço preenchido. CEP fora de Poços de Caldas (${addr.cidade}) - classificação automática aplicada.`;
+          
+          toast({ 
+            title: "Endereço preenchido", 
+            description: message
+          });
         } else {
-          toast({ title: "CEP não encontrado", description: "Verifique o CEP informado.", variant: "destructive" });
+          setAddressInfo(null);
+          setAutoClassification("");
+          toast({ 
+            title: "CEP não encontrado", 
+            description: "Verifique o CEP informado.", 
+            variant: "destructive" 
+          });
         }
       } catch (e) {
-        toast({ title: "Erro ao buscar CEP", description: "Tente novamente mais tarde.", variant: "destructive" });
+        setAddressInfo(null);
+        setAutoClassification("");
+        toast({ 
+          title: "Erro ao buscar CEP", 
+          description: "Tente novamente mais tarde.", 
+          variant: "destructive" 
+        });
       } finally {
         setIsFetchingCep(false);
       }
     })();
   }, [cepValue]);
 
-// Classificação de CEP via utils; aplicação de desconto ocorrerá manualmente na etapa "Descontos".
+// Classificação de CEP com dados dinâmicos; aplicação de desconto ocorrerá manualmente na etapa "Descontos".
   const onSubmit = form.handleSubmit((values) => {
     setEnderecoAluno(values);
-    const cls = classifyCep(values.cep);
-    let descMsg = "CEP inválido";
-    if (cls === "fora") descMsg = "Fora de Poços de Caldas — elegível a 10% (CEP10)";
-    else if (cls === "baixa") descMsg = "Poços (bairro de menor renda) — elegível a 5% (CEP5)";
-    else if (cls === "alta") descMsg = "Poços (bairro de maior renda) — sem desconto por CEP";
-
-    const elegivel = cls === "fora" || cls === "baixa";
-    const complemento = elegivel ? " Você poderá aplicar o desconto por CEP na etapa \"Descontos\"." : "";
-    toast({ title: "Endereço salvo", description: `${descMsg}${complemento}` });
+    
+    // 🎯 FALLBACK INTELIGENTE: Usar dados dinâmicos ou estáticos
+    const cls = classifyCepWithDynamic(values.cep, dynamicClassification, true);
+    const descMsg = describeCepClassWithDynamic(cls, dynamicClassification, true);
+    const percentual = getCepDiscountPercentage(cls, dynamicClassification, true);
+    
+    const elegivel = percentual > 0;
+    const dinamicIndicator = dynamicClassification?.categoria === cls ? " (Dados sincronizados)" : " (Dados locais)";
+    const complemento = elegivel ? ` Você poderá aplicar o desconto por CEP na etapa "Descontos".${dinamicIndicator}` : dinamicIndicator;
+    
+    toast({ 
+      title: "Endereço salvo", 
+      description: `${descMsg}${complemento}` 
+    });
     onNext();
   });
 
@@ -136,7 +162,39 @@ const StepEndereco: React.FC<Props> = ({ onPrev, onNext }) => {
                   disabled={isFetchingCep}
                 />
               </FormControl>
-              <p className="text-xs text-muted-foreground">{describeCepClass(classifyCep(cepValue))}</p>
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {cepLoading ? "Classificando..." : (
+                    addressInfo ? (
+                      autoClassification === "fora" ? (
+                        <span className="text-orange-600 font-medium">
+                          🌍 Fora de Poços de Caldas ({addressInfo.cidade})
+                        </span>
+                      ) : isPocosDeCaldas(addressInfo.cidade) ? (
+                        <span className="text-blue-600 font-medium">
+                          🏠 Poços de Caldas - Selecione a classificação no admin
+                        </span>
+                      ) : (
+                        describeCepClassWithDynamic(classifyCepWithDynamic(cepValue, dynamicClassification, true), dynamicClassification, true)
+                      )
+                    ) : (
+                      describeCepClassWithDynamic(classifyCepWithDynamic(cepValue, dynamicClassification, true), dynamicClassification, true)
+                    )
+                  )}
+                </div>
+                {cepValue && (
+                  <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      autoClassification === "fora" ? 'bg-orange-500' :
+                      dynamicClassification?.categoria ? 'bg-green-500' : 'bg-yellow-500'
+                    }`} />
+                    <span>{
+                      autoClassification === "fora" ? '🎯 Auto' :
+                      dynamicClassification?.categoria ? '✅ Dinâmico' : '⚠️ Estático'
+                    }</span>
+                  </div>
+                )}
+              </div>
               <FormMessage />
             </FormItem>
           )} />
