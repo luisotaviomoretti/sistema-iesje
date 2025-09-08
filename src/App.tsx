@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import Rematricula from "./pages/Rematricula";
+import RematriculaPage from "./features/rematricula-v2/pages/RematriculaPage";
 import NovaMatricula from "./features/matricula-nova/pages/NovaMatricula";
 import TestDiscountSync from "./pages/TestDiscountSync";
 import TestDiscountDocuments from "./pages/TestDiscountDocuments";
@@ -76,10 +76,10 @@ const App = () => (
               </MatriculaRoute>
             } />
 
-            {/* Rematrícula - Placeholder temporário */}
+            {/* Rematrícula V2 - Nova arquitetura independente */}
             <Route path="/rematricula" element={
               <MatriculaRoute>
-                <Rematricula />
+                <RematriculaPage />
               </MatriculaRoute>
             } />
             
