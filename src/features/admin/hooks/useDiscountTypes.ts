@@ -184,14 +184,14 @@ export const useActivateDiscountType = () => {
 // Hook público para usar no sistema de matrícula (sem autenticação admin)
 export const usePublicDiscountTypes = () => {
   return useQuery({
-    queryKey: ['public-discount-types'],
+    queryKey: ['public-discount-types-v2'],
     queryFn: async () => {
       try {
-        // Fallback para query direta se RPC não existir
+        // Buscar TODOS os descontos (ativos e inativos) para permitir visibilidade completa
         const { data, error } = await supabase
           .from('tipos_desconto')
           .select('*')
-          .eq('ativo', true)
+          // REMOVIDO: .eq('ativo', true) - para incluir descontos inativos também
           .order('codigo')
         
         if (error) {
@@ -201,6 +201,18 @@ export const usePublicDiscountTypes = () => {
         }
         
         // Garantir que sempre retornamos um array
+        console.log('🔍 SUPABASE QUERY: Total de descontos retornados:', data?.length || 0)
+        if (data) {
+          const especialCategories = ['Especial', 'especial', 'ESPECIAL']
+          const especiais = data.filter(d => 
+            especialCategories.some(cat => d.categoria === cat)
+          )
+          console.log('⭐ SUPABASE: Descontos Especiais encontrados:', especiais.length)
+          especiais.forEach(d => {
+            console.log(`  - ${d.codigo}: categoria="${d.categoria}", ativo=${d.ativo}`)
+          })
+        }
+        
         return (data || []) as TipoDesconto[]
       } catch (err) {
         console.error('Erro inesperado em usePublicDiscountTypes:', err)

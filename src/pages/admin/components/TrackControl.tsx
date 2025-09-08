@@ -60,17 +60,22 @@ export const TrackControl: React.FC<TrackControlProps> = ({ trilhos, canEdit }) 
   
   // Handler para salvar edição
   const handleSave = async (trilhoId: string) => {
+    console.log('🚀 TrackControl - Salvando trilho:', trilhoId)
+    console.log('📝 Dados sendo salvos:', editData)
+    console.log('📊 CAP_MAXIMO sendo enviado:', editData.cap_maximo, 'tipo:', typeof editData.cap_maximo)
+    
     try {
-      await updateTrilho.mutateAsync({
+      const result = await updateTrilho.mutateAsync({
         id: trilhoId,
         ...editData
       })
       
+      console.log('✅ Resultado da atualização:', result)
       toast.success('Trilho atualizado com sucesso!')
       cancelEdit()
     } catch (error) {
       toast.error('Erro ao atualizar trilho')
-      console.error(error)
+      console.error('❌ Erro completo:', error)
     }
   }
   
@@ -211,9 +216,9 @@ export const TrackControl: React.FC<TrackControlProps> = ({ trilhos, canEdit }) 
                           {trilho.ativo ? 'Ativo' : 'Inativo'}
                         </Badge>
                         
-                        {trilho.cap_maximo && (
-                          <Badge variant="outline" className="text-xs">
-                            Cap: {trilho.cap_maximo}%
+                        {trilho.cap_maximo !== null && (
+                          <Badge variant="outline" className="text-xs font-semibold">
+                            CAP: {trilho.cap_maximo}%
                           </Badge>
                         )}
                       </div>
@@ -332,15 +337,22 @@ export const TrackControl: React.FC<TrackControlProps> = ({ trilhos, canEdit }) 
                       <Input
                         type="number"
                         value={editData.cap_maximo || ''}
-                        onChange={(e) => setEditData({ 
-                          ...editData, 
-                          cap_maximo: e.target.value ? parseFloat(e.target.value) : null 
-                        })}
+                        onChange={(e) => {
+                          const newValue = e.target.value ? parseFloat(e.target.value) : null
+                          console.log('🔢 CAP input change:', e.target.value, '→', newValue)
+                          setEditData({ 
+                            ...editData, 
+                            cap_maximo: newValue
+                          })
+                        }}
                         placeholder="Sem limite"
                         min="0"
                         max="100"
                         step="0.5"
                       />
+                      <span className="text-xs text-muted-foreground">
+                        Valor atual no estado: {editData.cap_maximo ?? 'null'}
+                      </span>
                     </div>
                     
                     {/* Status */}

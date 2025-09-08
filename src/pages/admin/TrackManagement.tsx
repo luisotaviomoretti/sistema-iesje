@@ -22,7 +22,6 @@ import {
 import { Link, useNavigate } from 'react-router-dom'
 import { useAdminAuth } from '@/features/admin/hooks/useAdminAuth'
 import { useTrilhos, useCapConfigs, useCurrentCapConfig } from '@/features/admin/hooks/useTrilhos'
-import { CapManager } from './components/CapManager'
 import { TrackControl } from './components/TrackControl'
 
 // ============================================================================
@@ -156,15 +155,10 @@ const TrackManagement: React.FC = () => {
       
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Route className="h-4 w-4" />
             <span className="hidden sm:inline">Visão Geral</span>
-          </TabsTrigger>
-          
-          <TabsTrigger value="caps" className="flex items-center gap-2">
-            <Sliders className="h-4 w-4" />
-            <span className="hidden sm:inline">Gerenciar Caps</span>
           </TabsTrigger>
           
           <TabsTrigger value="control" className="flex items-center gap-2">
@@ -280,15 +274,6 @@ const TrackManagement: React.FC = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-        
-        {/* Caps Management Tab */}
-        <TabsContent value="caps">
-          <CapManager 
-            currentConfig={currentCap!}
-            canEdit={canEdit}
-            history={capHistory || []}
-          />
         </TabsContent>
         
         {/* Control Tab */}

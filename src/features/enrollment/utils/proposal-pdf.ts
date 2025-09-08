@@ -113,7 +113,7 @@ export function generateProposalPdf(params: {
   doc.setFontSize(10);
   doc.text(`Valor base: ${BRL(base)}`, 40, y);
   y += 16;
-  doc.text(`Total de descontos: ${summary.cappedPercent}%${summary.capReached ? " (limitado a 60%)" : ""}`, 40, y);
+  doc.text(`Total de descontos: ${summary.cappedPercent}%${summary.capReached ? " (limitado a 101%)" : ""}`, 40, y);
   y += 16;
   doc.text(`Valor final: ${BRL(summary.finalValue)}`, 40, y);
   y += 16;

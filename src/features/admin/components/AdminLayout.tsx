@@ -19,7 +19,8 @@ import {
   LogOut,
   Menu,
   Shield,
-  Route
+  Route,
+  ClipboardList
 } from 'lucide-react'
 import { useAdminAuth, useAdminLogout, formatRole, getRoleColor } from '@/features/admin/hooks/useAdminAuth'
 import { useState } from 'react'
@@ -50,6 +51,12 @@ const AdminLayout = () => {
       href: '/admin',
       icon: Home,
       exact: true
+    },
+    {
+      name: 'Matrículas',
+      href: '/admin/matriculas',
+      icon: ClipboardList,
+      requiredRole: 'operador' as const
     },
     {
       name: 'Tipos de Desconto',

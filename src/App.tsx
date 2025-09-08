@@ -5,25 +5,39 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import Rematricula from "./pages/Rematricula";
-import NovaMatricula from "./pages/NovaMatricula";
-import RematriculaAluno from "./pages/RematriculaAluno";
-import { EnrollmentProvider } from "./features/enrollment/context/EnrollmentContext";
-import IdentificacaoAluno from "./pages/Identificacao";
-import ResumoMatricula from "./pages/ResumoMatricula";
-import ResumoMatriculaProfissional from "./pages/ResumoMatriculaProfissional";
+// import Rematricula from "./pages/Rematricula";
+import NovaMatricula from "./features/matricula-nova/pages/NovaMatricula";
+import TestDiscountSync from "./pages/TestDiscountSync";
+import TestDiscountDocuments from "./pages/TestDiscountDocuments";
+import TestIntegrationDocuments from "./pages/TestIntegrationDocuments";
+import TestAdminDocuments from "./pages/TestAdminDocuments";
+import TestPDFV2 from "./pages/TestPDFV2";
+import TestPDFMinimal from "./pages/TestPDFMinimal";
+import TestPDFCompact from "./pages/TestPDFCompact";
+import TestEdgeFunction from "./pages/TestEdgeFunction";
+import TestUserDetection from "./pages/TestUserDetection";
+import TestEnrollmentTracking from "./pages/TestEnrollmentTracking";
+// import RematriculaAluno from "./pages/RematriculaAluno";
+// import IdentificacaoAluno from "./pages/Identificacao";
+// import ResumoMatricula from "./pages/ResumoMatricula";
+// import ResumoMatriculaProfissional from "./pages/ResumoMatriculaProfissional";
 import MatriculasRecentes from "./pages/MatriculasRecentes";
 
 // Admin imports
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import EnrollmentsList from "./pages/admin/EnrollmentsList";
+import EnrollmentEdit from "./pages/admin/EnrollmentEdit";
 import DiscountManagement from "./pages/admin/DiscountManagement";
 import CepManagement from "./pages/admin/CepManagement";
 import SeriesManagement from "./pages/admin/SeriesManagement";
 import TrackManagement from "./pages/admin/TrackManagement";
-import TestElegibilidade from "./pages/TestElegibilidade";
-import TestEligibilityIntegration from "./pages/TestEligibilityIntegration";
-import TesteRPC from "./pages/TesteRPC";
+import MatriculaUsersManagement from "./pages/admin/MatriculaUsersManagement";
+import MatriculaLogin from "./pages/MatriculaLogin";
+import MatriculaRoute from "./features/matricula/components/MatriculaRoute";
+// import TestElegibilidade from "./pages/TestElegibilidade";
+// import TestEligibilityIntegration from "./pages/TestEligibilityIntegration";
+// import TesteRPC from "./pages/TesteRPC";
 import AdminRoute from "./features/admin/components/AdminRoute";
 import AdminLayout from "./features/admin/components/AdminLayout";
 
@@ -34,22 +48,50 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <EnrollmentProvider>
-        <BrowserRouter>
+      <BrowserRouter>
           <Routes>
             {/* Public Routes */}
-            <Route path="/" element={<Index />} />
-            <Route path="/identificacao" element={<IdentificacaoAluno />} />
+            <Route path="/" element={
+              <MatriculaRoute>
+                <Index />
+              </MatriculaRoute>
+            } />
+            {/* <Route path="/identificacao" element={<IdentificacaoAluno />} />
             <Route path="/rematricula/:id" element={<RematriculaAluno />} />
             <Route path="/rematricula/:id/resumo" element={<ResumoMatricula />} />
             <Route path="/rematricula" element={<Rematricula />} />
-            <Route path="/nova-matricula" element={<NovaMatricula />} />
             <Route path="/nova-matricula/resumo" element={<ResumoMatriculaProfissional />} />
             <Route path="/nova-matricula/resumo-simples" element={<ResumoMatricula />} />
-            <Route path="/matriculas-recentes" element={<MatriculasRecentes />} />
+            */}
+            <Route path="/matriculas-recentes" element={
+              <MatriculaRoute>
+                <MatriculasRecentes />
+              </MatriculaRoute>
+            } />
+            <Route path="/matricula/login" element={<MatriculaLogin />} />
+            {/*
             <Route path="/test-elegibilidade" element={<TestElegibilidade />} />
             <Route path="/test-integration" element={<TestEligibilityIntegration />} />
-            <Route path="/teste-rpc" element={<TesteRPC />} />
+            <Route path="/teste-rpc" element={<TesteRPC />} /> */}
+            
+            {/* Nova Matrícula V2 */}
+            <Route path="/nova-matricula" element={
+              <MatriculaRoute>
+                <NovaMatricula />
+              </MatriculaRoute>
+            } />
+            
+            {/* Test Routes */}
+            <Route path="/test-discount-sync" element={<TestDiscountSync />} />
+            <Route path="/test-documents" element={<TestDiscountDocuments />} />
+            <Route path="/test-integration" element={<TestIntegrationDocuments />} />
+            <Route path="/test-admin" element={<TestAdminDocuments />} />
+            <Route path="/test-pdf" element={<TestPDFV2 />} />
+            <Route path="/test-pdf-minimal" element={<TestPDFMinimal />} />
+            <Route path="/test-pdf-compact" element={<TestPDFCompact />} />
+            <Route path="/test-edge" element={<TestEdgeFunction />} />
+            <Route path="/test-user" element={<TestUserDetection />} />
+            <Route path="/test-tracking" element={<TestEnrollmentTracking />} />
             
             {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
@@ -59,6 +101,16 @@ const App = () => (
               </AdminRoute>
             }>
               <Route index element={<AdminDashboard />} />
+              <Route path="matriculas" element={
+                <AdminRoute requiredRole="operador">
+                  <EnrollmentsList />
+                </AdminRoute>
+              } />
+              <Route path="matriculas/:id" element={
+                <AdminRoute requiredRole="coordenador">
+                  <EnrollmentEdit />
+                </AdminRoute>
+              } />
               <Route path="descontos" element={
                 <AdminRoute requiredRole="coordenador">
                   <DiscountManagement />
@@ -80,8 +132,8 @@ const App = () => (
                 </AdminRoute>
               } />
               <Route path="usuarios" element={
-                <AdminRoute requiredRole="super_admin">
-                  <div>Gerenciamento de Usuários (Em breve)</div>
+                <AdminRoute requiredRole="coordenador">
+                  <MatriculaUsersManagement />
                 </AdminRoute>
               } />
               <Route path="configuracoes" element={
@@ -95,7 +147,6 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      </EnrollmentProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

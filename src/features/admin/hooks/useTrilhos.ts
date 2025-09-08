@@ -95,26 +95,55 @@ export const useUpdateTrilho = () => {
   
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & TrilhoDescontoUpdate) => {
+      console.log('🔄 Atualizando trilho:', { id, updates })
+      console.log('📝 Dados sendo enviados:', {
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      
+      const updatePayload = {
+        ...updates,
+        updated_at: new Date().toISOString()
+      }
+      
+      console.log('🔐 Verificando autenticação Supabase...')
+      const { data: { user } } = await supabase.auth.getUser()
+      console.log('👤 Usuário autenticado:', user?.email || 'Não autenticado')
+      
       const { data, error } = await supabase
         .from('trilhos_desconto')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', id)
         .select()
         .single()
       
+      // Verificar se houve erro de RLS
+      if (error?.code === '42501') {
+        console.error('❌ Erro de permissão RLS! Usuário não tem permissão para atualizar.')
+      }
+      
       if (error) {
-        console.error('Erro ao atualizar trilho:', error)
+        console.error('❌ Erro ao atualizar trilho:', error)
+        console.error('Detalhes do erro:', error.details, error.hint, error.message)
         throw new Error(error.message)
       }
+      
+      console.log('✅ Trilho atualizado com sucesso:', data)
+      console.log('📊 CAP após atualização:', data?.cap_maximo)
       
       return data as TrilhoDesconto
     },
     onSuccess: (updatedTrilho) => {
+      console.log('🔄 Invalidando cache após sucesso...')
+      // Invalidar todas as queries relacionadas a trilhos
       queryClient.invalidateQueries({ queryKey: ['trilhos'] })
+      queryClient.invalidateQueries({ queryKey: ['public-trilhos'] })
       queryClient.invalidateQueries({ queryKey: ['trilho', updatedTrilho.nome] })
+      queryClient.invalidateQueries({ queryKey: ['tracks'] })
+      
+      // Forçar refetch imediato
+      queryClient.refetchQueries({ queryKey: ['public-trilhos'] })
+      console.log('✅ Cache invalidado e dados recarregados')
     },
     onError: (error) => {
       console.error('Erro na atualização do trilho:', error)
@@ -349,6 +378,8 @@ export const usePublicTrilhos = () => {
   return useQuery({
     queryKey: ['public-trilhos'],
     queryFn: async () => {
+      console.log(`🔍 Buscando trilhos do banco de dados... [${new Date().toLocaleTimeString()}]`)
+      
       const { data, error } = await supabase
         .from('trilhos_desconto')
         .select('*')
@@ -360,10 +391,24 @@ export const usePublicTrilhos = () => {
         throw new Error(error.message)
       }
       
+      console.log('📊 Trilhos retornados do banco (RAW):', JSON.stringify(data, null, 2))
+      console.log('📊 CAPs dos trilhos:')
+      data?.forEach(trilho => {
+        console.log(`  - ${trilho.nome}: CAP = ${trilho.cap_maximo}% (tipo: ${typeof trilho.cap_maximo})`)
+        console.log(`    Dados completos:`, {
+          id: trilho.id,
+          nome: trilho.nome,
+          cap_maximo: trilho.cap_maximo,
+          updated_at: trilho.updated_at
+        })
+      })
+      
       return data as TrilhoDesconto[]
     },
-    staleTime: 10 * 60 * 1000, // 10 minutos (cache mais longo para dados públicos)
-    gcTime: 30 * 60 * 1000, // 30 minutos
+    staleTime: 5 * 1000, // 5 segundos - atualização muito rápida para debug
+    gcTime: 10 * 1000, // 10 segundos
+    refetchOnMount: true, // Sempre buscar ao montar
+    refetchOnWindowFocus: true // Buscar ao focar na janela
   })
 }
 

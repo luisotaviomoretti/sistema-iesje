@@ -28,16 +28,12 @@ export const useAdminAuth = () => {
         }
         
         // Verificar se o usuário é um admin ativo
-        console.log('🔍 Verificando admin para email:', session.user.email)
-        
         const { data: adminUser, error: adminError } = await supabase
           .from('admin_users')
           .select('*')
           .eq('email', session.user.email)
           .eq('ativo', true)
           .single()
-          
-        console.log('📊 Query admin_users resultado:', { adminUser, adminError })
         
         if (adminError) {
           if (adminError.code === 'PGRST116') { // Not found

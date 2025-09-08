@@ -10,7 +10,7 @@
 -- =====================================================
 INSERT INTO public.system_configs (chave, valor, descricao, categoria) VALUES
 -- Configurações Financeiras
-('max_desconto_total', '60', 'Limite máximo de desconto cumulativo (%)', 'financeiro'),
+('max_desconto_total', '101', 'Limite máximo de desconto cumulativo (%)', 'financeiro'),
 ('moeda_padrao', 'BRL', 'Moeda padrão do sistema', 'financeiro'),
 ('ano_letivo_atual', '2025', 'Ano letivo vigente', 'geral'),
 

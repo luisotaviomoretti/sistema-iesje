@@ -3,34 +3,38 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { calculateTotals } from "@/features/enrollment/utils/discounts";
-import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
-import { readRecent, clearRecent, type StoredEnrollment } from "@/features/enrollment/utils/recent-enrollments";
-import { usePublicDiscountTypes } from "@/features/admin/hooks/useDiscountTypes";
-import { useMaxDiscountLimit } from "@/features/admin/hooks/useEnrollmentConfig";
-import { TIPOS_DESCONTO, MAX_DESCONTO_TOTAL } from "@/features/enrollment/constants";
-import { Download, Trash2, ArrowLeft } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Download, Trash2, ArrowLeft, RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
+import { useRecentEnrollments } from "@/features/matricula-nova/hooks/useRecentEnrollments";
+import { EnrollmentApiService } from "@/features/matricula-nova/services/api/enrollment";
+import type { EnrollmentRecord } from "@/types/database";
 
-const BRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const BRL = (v: number) => (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const MatriculasRecentes: React.FC = () => {
-  const [items, setItems] = useState<StoredEnrollment[]>([]);
   const location = useLocation();
-  
-  // 🔄 MIGRAÇÃO PROGRESSIVA: Dados dinâmicos do admin
-  const { data: dynamicDiscountTypes } = usePublicDiscountTypes();
-  const { data: maxDiscountLimit } = useMaxDiscountLimit();
-  
-  // 🎯 FALLBACK INTELIGENTE
-  const discountTypes = useMemo(() => {
-    return dynamicDiscountTypes?.length > 0 ? dynamicDiscountTypes : TIPOS_DESCONTO;
-  }, [dynamicDiscountTypes]);
-  
-  const effectiveMaxDiscount = maxDiscountLimit ?? MAX_DESCONTO_TOTAL;
+  const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    setItems(readRecent());
-  }, []);
+  const { data: enrollments, isLoading, error, refetch, isFetching } = useRecentEnrollments(50);
+  
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    // Filtra por termo (se houver)
+    const list = (enrollments || []).filter(e => {
+      if (!term) return true
+      return (
+        e.student_name?.toLowerCase().includes(term) ||
+        e.student_cpf?.includes(term)
+      )
+    })
+    // Ordena do mais recente para o mais antigo
+    return list.sort((a, b) => {
+      const aTime = new Date(a.created_at).getTime() || 0
+      const bTime = new Date(b.created_at).getTime() || 0
+      return bTime - aTime
+    })
+  }, [enrollments, search])
 
   // SEO
   useEffect(() => {
@@ -46,33 +50,35 @@ const MatriculasRecentes: React.FC = () => {
     document.head.appendChild(canonical);
   }, [location.pathname]);
 
-  const onClear = () => {
-    if (confirm("Deseja limpar o histórico local de matrículas?")) {
-      clearRecent();
-      setItems([]);
+  const onSoftDelete = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta matrícula?")) return
+    try {
+      await EnrollmentApiService.softDeleteEnrollment(id)
+      toast.success("Matrícula excluída com sucesso")
+      refetch()
+    } catch (err) {
+      toast.error("Erro ao excluir matrícula")
+      console.error(err)
     }
-  };
+  }
 
-  const onDownload = (row: StoredEnrollment) => {
-    const base = Number(row.matricula?.valor_mensalidade_base || 0);
-    generateProposalPdf({
-      flow: row.flow,
-      student: row.student as any,
-      matricula: row.matricula as any,
-      descontos: row.descontos as any,
-      baseMensal: base,
-      responsaveis: row.responsaveis as any,
-      discountTypes,
-      maxDiscountLimit: effectiveMaxDiscount,
-    });
-  };
+  const onDownload = (e: EnrollmentRecord) => {
+    if (!e.pdf_url) {
+      toast.warning("PDF não disponível para esta matrícula")
+      return
+    }
+    const link = document.createElement('a')
+    link.href = e.pdf_url
+    link.download = `proposta-${(e.student_name || 'aluno').replace(/\s+/g, '-')}.pdf`
+    link.click()
+  }
 
   return (
     <main className="container py-8 space-y-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold">Últimas Matrículas</h1>
-          <p className="text-sm text-muted-foreground">Histórico local das 20 matrículas mais recentes.</p>
+          <p className="text-sm text-muted-foreground">Lista dinâmica das matrículas mais recentes.</p>
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline">
@@ -80,30 +86,45 @@ const MatriculasRecentes: React.FC = () => {
               <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao início
             </Link>
           </Button>
-          <Button variant="destructive" onClick={onClear} disabled={items.length === 0}>
-            <Trash2 className="mr-2 h-4 w-4" /> Limpar histórico
+          <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
           </Button>
         </div>
       </header>
 
       <Card>
         <CardHeader>
-          <CardTitle>20 registros mais recentes</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Matrículas mais recentes</CardTitle>
+            <div className="w-full max-w-xs">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Buscar por aluno ou CPF"
+                  className="pl-8"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {items.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              Nenhuma matrícula registrada ainda. <Link to="/nova-matricula" className="underline">Inicie uma nova matrícula</Link>.
-            </div>
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Carregando matrículas...</div>
+          ) : error ? (
+            <div className="text-sm text-red-600">Erro ao carregar matrículas. Verifique sua sessão/admin.</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Nenhuma matrícula encontrada.</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Data</TableHead>
                     <TableHead>Aluno</TableHead>
-                    <TableHead>Fluxo</TableHead>
-                    <TableHead>Série/Turno</TableHead>
+                    <TableHead>Escola</TableHead>
+                    <TableHead>Série</TableHead>
                     <TableHead className="text-right">Base</TableHead>
                     <TableHead className="text-right">% Desc.</TableHead>
                     <TableHead className="text-right">Valor Final</TableHead>
@@ -111,28 +132,25 @@ const MatriculasRecentes: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((it) => {
-                    const base = Number(it.matricula?.valor_mensalidade_base || 0);
-                    const totals = calculateTotals(base, it.descontos as any, discountTypes, effectiveMaxDiscount);
-                    const serieTurno = `${it.matricula?.serie_ano || "—"} / ${it.matricula?.turno || "—"}`;
-
-                    return (
-                      <TableRow key={it.id}>
-                        <TableCell>{new Date(it.createdAt).toLocaleString("pt-BR")}</TableCell>
-                        <TableCell>{it.student?.nome_completo || "—"}</TableCell>
-                        <TableCell className="capitalize">{it.flow}</TableCell>
-                        <TableCell>{serieTurno}</TableCell>
-                        <TableCell className="text-right">{BRL(base)}</TableCell>
-                        <TableCell className="text-right">{totals.cappedPercent}%</TableCell>
-                        <TableCell className="text-right">{BRL(totals.finalValue)}</TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="secondary" onClick={() => onDownload(it)} disabled={base <= 0} aria-label={`Baixar PDF de ${it.student?.nome_completo}`}>
-                            <Download className="mr-2 h-4 w-4" /> PDF
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {filtered.map((e) => (
+                    <TableRow key={e.id}>
+                      <TableCell>{new Date(e.created_at).toLocaleString("pt-BR")}</TableCell>
+                      <TableCell>{e.student_name}</TableCell>
+                      <TableCell className="capitalize">{e.student_escola}</TableCell>
+                      <TableCell>{e.series_name}</TableCell>
+                      <TableCell className="text-right">{BRL(Number(e.base_value))}</TableCell>
+                      <TableCell className="text-right">{Number(e.total_discount_percentage || 0)}%</TableCell>
+                      <TableCell className="text-right">{BRL(Number(e.final_monthly_value))}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button size="sm" variant="secondary" onClick={() => onDownload(e)} disabled={!e.pdf_url} aria-label={`Baixar PDF de ${e.student_name}`}>
+                          <Download className="mr-2 h-4 w-4" /> PDF
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => onSoftDelete(e.id)} aria-label={`Excluir matrícula de ${e.student_name}`}>
+                          <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>

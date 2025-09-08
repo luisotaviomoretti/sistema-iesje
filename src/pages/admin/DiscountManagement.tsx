@@ -53,6 +53,7 @@ import {
 } from '@/features/admin/hooks/useDiscountTypes'
 import { useAdminPermissions } from '@/features/admin/hooks/useAdminAuth'
 import { DiscountTypeForm } from '@/features/admin/components/DiscountTypeForm'
+import { DocumentsManager } from '@/features/admin/components/DocumentsManager'
 
 // Tipos para ordenação
 type SortField = 'codigo' | 'descricao' | 'categoria' | 'percentual_fixo' | 'nivel_aprovacao_requerido' | 'ativo'
@@ -68,6 +69,7 @@ const DiscountManagement = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [discountToDelete, setDiscountToDelete] = useState(null)
   const [viewingDiscount, setViewingDiscount] = useState(null)
+  const [managingDocuments, setManagingDocuments] = useState(null)
 
   const { permissions } = useAdminPermissions()
   const { data: discountTypes, isLoading } = useDiscountTypes(true) // incluir inativos
@@ -554,9 +556,18 @@ const DiscountManagement = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {discount.documentos_necessarios.length} doc(s)
-                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setManagingDocuments(discount)
+                        }}
+                        className="text-sm"
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        Documentos
+                      </Button>
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -626,6 +637,16 @@ const DiscountManagement = () => {
         <ViewDiscountDialog
           discount={viewingDiscount}
           onClose={() => setViewingDiscount(null)}
+        />
+      )}
+
+      {/* Documents Manager */}
+      {managingDocuments && (
+        <DocumentsManager
+          discountId={managingDocuments.id}
+          discountCode={managingDocuments.codigo}
+          discountName={managingDocuments.descricao}
+          onClose={() => setManagingDocuments(null)}
         />
       )}
 

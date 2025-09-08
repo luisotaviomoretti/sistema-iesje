@@ -1,10 +1,35 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CheckCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const Index = () => {
+  const location = useLocation() as any
+  const successState = location?.state?.enrollmentSuccess
+  const [showSuccess, setShowSuccess] = useState(!!successState)
+
+  useEffect(() => {
+    if (successState) setShowSuccess(true)
+    const timer = setTimeout(() => setShowSuccess(false), 6000)
+    return () => clearTimeout(timer)
+  }, [successState])
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-background">
       <article className="w-full container py-16 text-center space-y-8">
+        {showSuccess && (
+          <div className="max-w-2xl mx-auto">
+            <Alert>
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertTitle>Matrícula enviada com sucesso!</AlertTitle>
+              <AlertDescription>
+                {successState?.studentName ? `Aluno: ${successState.studentName}. ` : ''}
+                Você pode iniciar outra matrícula ou voltar mais tarde.
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
         <header className="space-y-4">
           <img
             src="/lovable-uploads/814e5eba-7015-4421-bfe7-7094b96ef294.png"
@@ -34,21 +59,6 @@ const Index = () => {
             <Link to="/matriculas-recentes">Últimas Matrículas</Link>
           </Button>
         </div>
-
-        <section className="grid md:grid-cols-3 gap-6 pt-6">
-          <div className="rounded-xl border p-6 hero-surface">
-            <h2 className="font-semibold mb-2">Descontos Oficiais</h2>
-            <p className="text-sm text-muted-foreground">Códigos IIR, RES, PASS, PBS, COL, SAE, LEC, FBM, MAC, NEC, ABI, ABP, PAV com rastreabilidade.</p>
-          </div>
-          <div className="rounded-xl border p-6">
-            <h2 className="font-semibold mb-2">Validação de Documentos</h2>
-            <p className="text-sm text-muted-foreground">Checklist dinâmico por tipo de desconto e níveis de aprovação.</p>
-          </div>
-          <div className="rounded-xl border p-6">
-            <h2 className="font-semibold mb-2">Limite de Desconto</h2>
-            <p className="text-sm text-muted-foreground">Até 60% cumulativo (exceto bolsas integrais) com cálculo automático.</p>
-          </div>
-        </section>
       </article>
     </main>
   );

@@ -14,7 +14,17 @@
       "Bash(cat:*)",
       "Bash(node:*)",
       "Bash(git checkout:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(echo:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Bash(timeout 10 npm run dev)",
+      "Bash(npx tsc:*)",
+      "Bash(grep:*)",
+      "Bash(npm test:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

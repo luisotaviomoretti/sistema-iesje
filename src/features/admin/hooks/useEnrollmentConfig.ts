@@ -65,7 +65,7 @@ export const useEnrollmentConfig = () => {
 
       // Estruturar configurações com valores padrão para chaves ausentes
       return {
-        maxDiscountLimit: configMap['max_desconto_total'] ?? 60,
+        maxDiscountLimit: configMap['max_desconto_total'] ?? 101,
         currentSchoolYear: configMap['ano_letivo'] ?? new Date().getFullYear(),
         systemName: configMap['nome_sistema'] ?? 'IESJE - Sistema de Matrícula',
         
@@ -112,7 +112,7 @@ export const useMaxDiscountLimit = () => {
   const { data: config, ...rest } = useEnrollmentConfig()
   
   return {
-    data: config?.maxDiscountLimit ?? 60,
+    data: config?.maxDiscountLimit ?? 101,
     ...rest
   }
 }
@@ -225,7 +225,7 @@ function parseConfigValue(valor: string, tipo: string): any {
  */
 function getDefaultConfig(): EnrollmentConfig {
   return {
-    maxDiscountLimit: 60,
+    maxDiscountLimit: 101,
     currentSchoolYear: new Date().getFullYear(),
     systemName: 'IESJE - Sistema de Matrícula',
     
@@ -287,7 +287,7 @@ export const isDiscountWithinLimit = (
   discountPercentage: number, 
   maxLimit?: number
 ): boolean => {
-  return discountPercentage <= (maxLimit ?? 60)
+  return discountPercentage <= (maxLimit ?? 101)
 }
 
 /**
