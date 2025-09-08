@@ -115,27 +115,4 @@ export class PreviousYearService {
     }
   }
 
-  /**
-   * Sugere progressão de série baseado no ano anterior
-   */
-  static suggestSeriesProgression(previousSeriesId: string, seriesList: any[]): string {
-    // Encontra a série anterior
-    const previousSeries = seriesList.find(s => s.id === previousSeriesId)
-    if (!previousSeries) return previousSeriesId
-
-    // Extrai número da série (ex: "1º Ano" -> 1)
-    const match = previousSeries.name.match(/(\d+)/)
-    if (!match) return previousSeriesId
-
-    const currentNumber = parseInt(match[1])
-    const nextNumber = currentNumber + 1
-
-    // Busca próxima série
-    const nextSeries = seriesList.find(s => 
-      s.name.includes(nextNumber.toString()) &&
-      s.escola === previousSeries.escola
-    )
-
-    return nextSeries?.id || previousSeriesId
-  }
 }

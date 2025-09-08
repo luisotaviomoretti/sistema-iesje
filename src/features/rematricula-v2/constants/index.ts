@@ -4,7 +4,6 @@
 
 // Configurações padrão
 export const DEFAULT_CONFIG = {
-  autoProgressSeries: true,
   keepPreviousDiscounts: true,
   requireDocumentValidation: false,
   enablePartialSave: true,

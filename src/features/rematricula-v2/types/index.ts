@@ -54,8 +54,7 @@ export interface AcademicData {
   track_id: string
   track_name?: string
   shift: ShiftType
-  previous_series_id?: string  // Série do ano anterior
-  recommended_series_id?: string  // Série recomendada pelo sistema
+  previous_series_id?: string  // Série do ano anterior (apenas informativo)
 }
 
 // Dados do aluno
@@ -134,7 +133,6 @@ export interface RematriculaFormState {
 
 // Configurações do hook de rematrícula
 export interface RematriculaConfig {
-  autoProgressSeries?: boolean  // Progride série automaticamente
   keepPreviousDiscounts?: boolean  // Mantém descontos do ano anterior
   requireDocumentValidation?: boolean  // Exige validação de documentos
   enablePartialSave?: boolean  // Permite salvar parcialmente
