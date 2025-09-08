@@ -478,36 +478,6 @@ export function usePreviousYearData(cpf: string, birthHint: string) {
 
 ### 🧠 FASE 2: Lógica de Negócio Independente (Semana 3-4)
 
-#### Etapa 2.1: Regras de Progressão
-```typescript
-// src/features/rematricula-v2/services/progressionRules.ts
-export class ProgressionRulesEngine {
-  static validateProgression(
-    currentSeries: string, 
-    targetSeries: string,
-    escola: EscolaType
-  ): ValidationResult {
-    const rules = this.getProgressionMatrix()
-    const allowedTransitions = rules[currentSeries] || []
-    
-    return {
-      isValid: allowedTransitions.includes(targetSeries),
-      warnings: this.generateWarnings(currentSeries, targetSeries),
-      recommendations: this.getRecommendations(currentSeries, escola)
-    }
-  }
-  
-  static getProgressionMatrix(): ProgressionMatrix {
-    return {
-      "ef1_5ano": ["ef2_6ano"],           // Normal: 5º → 6º
-      "ef2_7ano": ["ef2_8ano"],           // Normal: 7º → 8º  
-      "em_2ano": ["em_3ano"],             // Normal: 2º EM → 3º EM
-      // ... matriz completa
-    }
-  }
-}
-```
-
 #### Etapa 2.2: Motor de Migração de Descontos
 ```typescript
 // src/features/rematricula-v2/services/discountMigrationRules.ts
