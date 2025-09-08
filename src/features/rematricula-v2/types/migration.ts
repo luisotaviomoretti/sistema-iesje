@@ -3,6 +3,8 @@
  * Sistema de análise e transferência de descontos do ano anterior
  */
 
+import { PricingComparison } from './rematricula-pricing'
+
 // Contexto de elegibilidade para análise
 export interface EligibilityContext {
   studentCPF: string
@@ -67,7 +69,7 @@ export interface MigrationAnalysisComplete {
   // Recomendação do sistema
   recommendedStrategy: MigrationStrategy
   
-  // Impacto financeiro
+  // Impacto financeiro simplificado
   financialImpact: {
     previousMonthlyValue: number
     projectedMonthlyValue: number
