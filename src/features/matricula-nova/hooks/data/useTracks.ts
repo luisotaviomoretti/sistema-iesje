@@ -29,8 +29,7 @@ export function useTracks() {
   
   // Emergency fix: Retorna dados do admin se disponíveis, senão mock
   if (adminData.data) {
-    console.log('=== useTracks Debug ===')
-    console.log('Raw admin data:', adminData.data)
+    // logs removidos para conter loops
     
     // Adaptar dados do admin para formato esperado
     const adaptedData = adminData.data.map(trilho => {
@@ -44,11 +43,11 @@ export function useTracks() {
         ordem_exibicao: trilho.ordem_exibicao
       } as any
       
-      console.log(`Trilho adaptado: ${trilho.nome} - CAP: ${trilho.cap_maximo}%`)
+      // logs removidos
       return adapted
     })
     
-    console.log('Adapted data:', adaptedData)
+    // logs removidos
     
     return {
       ...adminData,

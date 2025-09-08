@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-// import Rematricula from "./pages/Rematricula";
+import Rematricula from "./pages/Rematricula";
 import NovaMatricula from "./features/matricula-nova/pages/NovaMatricula";
 import TestDiscountSync from "./pages/TestDiscountSync";
 import TestDiscountDocuments from "./pages/TestDiscountDocuments";
@@ -18,7 +18,7 @@ import TestEdgeFunction from "./pages/TestEdgeFunction";
 import TestUserDetection from "./pages/TestUserDetection";
 import TestEnrollmentTracking from "./pages/TestEnrollmentTracking";
 // import RematriculaAluno from "./pages/RematriculaAluno";
-// import IdentificacaoAluno from "./pages/Identificacao";
+import IdentificacaoAluno from "./pages/Identificacao";
 // import ResumoMatricula from "./pages/ResumoMatricula";
 // import ResumoMatriculaProfissional from "./pages/ResumoMatriculaProfissional";
 import MatriculasRecentes from "./pages/MatriculasRecentes";
@@ -56,13 +56,8 @@ const App = () => (
                 <Index />
               </MatriculaRoute>
             } />
-            {/* <Route path="/identificacao" element={<IdentificacaoAluno />} />
-            <Route path="/rematricula/:id" element={<RematriculaAluno />} />
-            <Route path="/rematricula/:id/resumo" element={<ResumoMatricula />} />
-            <Route path="/rematricula" element={<Rematricula />} />
-            <Route path="/nova-matricula/resumo" element={<ResumoMatriculaProfissional />} />
-            <Route path="/nova-matricula/resumo-simples" element={<ResumoMatricula />} />
-            */}
+            <Route path="/identificacao" element={<IdentificacaoAluno />} />
+            
             <Route path="/matriculas-recentes" element={
               <MatriculaRoute>
                 <MatriculasRecentes />
@@ -78,6 +73,13 @@ const App = () => (
             <Route path="/nova-matricula" element={
               <MatriculaRoute>
                 <NovaMatricula />
+              </MatriculaRoute>
+            } />
+
+            {/* Rematrícula - Placeholder temporário */}
+            <Route path="/rematricula" element={
+              <MatriculaRoute>
+                <Rematricula />
               </MatriculaRoute>
             } />
             

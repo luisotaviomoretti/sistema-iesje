@@ -1,13 +1,34 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+let supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+function isValidUrl(u?: string): boolean {
+  if (!u) return false
+  try {
+    const url = new URL(u as string)
+    return /^https?:$/.test(url.protocol)
+  } catch {
+    return false
+  }
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)')
+}
+
+// Auto-correct common malformed values like 'https:xyz.supabase.co' → 'https://xyz.supabase.co'
+if (typeof supabaseUrl === 'string') {
+  if (/^https:[^/]/.test(supabaseUrl)) supabaseUrl = supabaseUrl.replace(/^https:/, 'https://')
+  if (/^http:[^/]/.test(supabaseUrl)) supabaseUrl = supabaseUrl.replace(/^http:/, 'http://')
+}
+
+if (!isValidUrl(supabaseUrl)) {
+  console.error('[Supabase] Invalid VITE_SUPABASE_URL:', supabaseUrl)
+  throw new Error('Invalid VITE_SUPABASE_URL. Expected format: https://<project>.supabase.co')
+}
+
+export const supabase = createClient(supabaseUrl!, supabaseAnonKey)
 
 // Types para TypeScript baseados no schema do banco
 // =====================================================

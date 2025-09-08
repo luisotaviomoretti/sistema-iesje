@@ -9,7 +9,7 @@ import { EnrollmentApiService } from '../services/api/enrollment'
 
 // Hooks de dados
 import { useDiscounts } from './data/useDiscounts'
-import { useSeries } from './data/useSeries'
+import { useSeries } from './data/useSeriesOptimized'
 import { useTracks } from './data/useTracks'
 import { useMatriculaAuth } from '@/features/matricula/hooks/useMatriculaAuth'
 import { mapMatriculaUserEscolaToFormValue } from '../utils/escola'
@@ -98,7 +98,7 @@ export function useEnrollmentForm(): EnrollmentFormState & EnrollmentFormActions
   
   // Watch student data specifically for validation and escola
   const studentData = watchedValues.student
-  const escolaSelecionada = studentData?.escola
+  const escolaSelecionada = useMemo(() => studentData?.escola, [studentData?.escola])
 
   // Auto-preenchimento seguro do campo escola conforme usuário de matrícula
   useEffect(() => {

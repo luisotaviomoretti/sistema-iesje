@@ -1,75 +1,39 @@
-import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { mockStudents } from "@/data/mock";
-import { cpfIsValid } from "@/features/enrollment/utils/validation";
-import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertCircle } from "lucide-react";
 
-const Rematricula = () => {
-  const [q, setQ] = useState("");
+export default function Rematricula() {
   const navigate = useNavigate();
-  const { setFlow, setSelectedStudent } = useEnrollment();
-
-  const results = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return [];
-    return mockStudents.filter((s) =>
-      s.nome_completo.toLowerCase().includes(term) || s.cpf.includes(term.replace(/\D/g, ""))
-    );
-  }, [q]);
 
   return (
-    <main className="container py-10 space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold">Rematrícula IESJE</h1>
-        <p className="text-muted-foreground">Busque por CPF ou nome para iniciar a rematrícula.</p>
-      </header>
-
-      <section className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Input
-            placeholder="Digite CPF (apenas números) ou nome do aluno"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <Button variant="secondary" onClick={() => setQ("")}>Limpar</Button>
-        </div>
-        {q && !cpfIsValid(q) && q.replace(/\D/g, "").length > 0 && (
-          <p className="text-sm text-muted-foreground">Dica: verifique se o CPF possui 11 dígitos.</p>
-        )}
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {results.map((s) => (
-            <Card key={s.id} className="hover:shadow-elevated transition-smooth">
-              <CardHeader>
-                <CardTitle className="text-lg">{s.nome_completo}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">CPF: {s.cpf}</span>
-                <Button
-                  variant="hero"
-                  onClick={() => {
-                    setFlow("rematricula");
-                    setSelectedStudent(s);
-                    navigate(`/rematricula/${s.id}`);
-                  }}
-                >
-                  Iniciar
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-xl border p-6">
-        <h2 className="text-xl font-semibold mb-2">Wizard de Rematrícula</h2>
-        <p className="text-muted-foreground">Selecione um aluno para avançar pelas etapas.</p>
-      </section>
-    </main>
+    <div className="container mx-auto px-4 py-8 max-w-2xl">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-amber-500" />
+            Rematrícula - Em Desenvolvimento
+          </CardTitle>
+          <CardDescription>
+            O sistema de rematrícula está sendo completamente reconstruído para melhor atendê-lo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Estamos implementando um novo fluxo de rematrícula mais eficiente e intuitivo. 
+            Por favor, utilize o sistema de nova matrícula enquanto finalizamos as melhorias.
+          </p>
+          
+          <div className="flex gap-3">
+            <Button onClick={() => navigate("/nova-matricula")}>
+              Ir para Nova Matrícula
+            </Button>
+            <Button variant="outline" onClick={() => navigate("/")}>
+              Voltar ao Início
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
-};
-
-export default Rematricula;
+}

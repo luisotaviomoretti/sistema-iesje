@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useEnrollment } from "@/features/enrollment/context/EnrollmentContext";
+// Removed invalid context import; page will need future refactor if used
 import { DiscountSummary } from "@/features/enrollment/components/DiscountSummary";
 import { generateProposalPdf } from "@/features/enrollment/utils/proposal-pdf";
 import type { Desconto } from "@/features/enrollment/types";

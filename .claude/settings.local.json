@@ -24,7 +24,16 @@
       "Bash(npx tsc:*)",
       "Bash(grep:*)",
       "Bash(npm test:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(if [ -d \"supabase/functions/validate_cpf\" ])",
+      "Bash(then cp -r supabase/functions/validate_cpf backups/2025-09-08/functions/)",
+      "Bash(else echo \"validate_cpf não encontrado\")",
+      "Bash(fi)",
+      "Bash(if [ -d \"supabase/functions/get_previous_year_student\" ])",
+      "Bash(then cp -r supabase/functions/get_previous_year_student backups/2025-09-08/functions/)",
+      "Bash(else echo \"get_previous_year_student não encontrado\")",
+      "Bash(tree:*)",
+      "Bash(sha256sum:*)"
     ],
     "deny": [],
     "ask": []

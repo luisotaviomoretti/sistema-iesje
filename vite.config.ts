@@ -11,8 +11,8 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === 'development' &&
-    componentTagger(),
+    // Temporariamente desabilitado: componentTagger pode afetar paths em Windows
+    // mode === 'development' && componentTagger(),
   ].filter(Boolean),
   resolve: {
     alias: {
