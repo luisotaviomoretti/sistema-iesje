@@ -53,7 +53,7 @@ export class DiscountMigrationEngine {
   private static readonly EMPLOYMENT_BASED = ['PASS', 'PBS', 'COL', 'SAE']
   
   // Limite máximo de desconto cumulativo
-  private static readonly MAX_CUMULATIVE_DISCOUNT = 60
+  private static readonly MAX_CUMULATIVE_DISCOUNT = 101
 
   /**
    * Analisa a migração de descontos do ano anterior

@@ -141,7 +141,8 @@ export class SubmissionService {
       enrollment_type: 're-enrollment',
       academic_year: new Date().getFullYear(),
       status: 'pending',
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      // tag_matricula derivada no servidor (trigger BEFORE INSERT)
     }
   }
 

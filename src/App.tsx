@@ -2,10 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import RematriculaPage from "./features/rematricula-v2/pages/RematriculaPage";
+import RematriculaValidation from "./features/rematricula-v2/pages/RematriculaValidation";
+import RematriculaDetailsPage from "./features/rematricula-v2/pages/RematriculaDetailsPage";
 import NovaMatricula from "./features/matricula-nova/pages/NovaMatricula";
 import TestDiscountSync from "./pages/TestDiscountSync";
 import TestDiscountDocuments from "./pages/TestDiscountDocuments";
@@ -22,12 +24,15 @@ import IdentificacaoAluno from "./pages/Identificacao";
 // import ResumoMatricula from "./pages/ResumoMatricula";
 // import ResumoMatriculaProfissional from "./pages/ResumoMatriculaProfissional";
 import MatriculasRecentes from "./pages/MatriculasRecentes";
+import HomePage from "./pages/Home";
+import RematriculaBuscaPage from "./features/rematricula-v2/pages/RematriculaBuscaPage";
 
 // Admin imports
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import EnrollmentsList from "./pages/admin/EnrollmentsList";
 import EnrollmentEdit from "./pages/admin/EnrollmentEdit";
+import EnrollmentDiscountsView from "./pages/admin/EnrollmentDiscountsView";
 import DiscountManagement from "./pages/admin/DiscountManagement";
 import CepManagement from "./pages/admin/CepManagement";
 import SeriesManagement from "./pages/admin/SeriesManagement";
@@ -40,6 +45,8 @@ import MatriculaRoute from "./features/matricula/components/MatriculaRoute";
 // import TesteRPC from "./pages/TesteRPC";
 import AdminRoute from "./features/admin/components/AdminRoute";
 import AdminLayout from "./features/admin/components/AdminLayout";
+import SystemConfigurations from "./pages/admin/SystemConfigurations";
+import InadimplentesManagement from "./pages/admin/InadimplentesManagement";
 
 const queryClient = new QueryClient();
 
@@ -53,9 +60,17 @@ const App = () => (
             {/* Public Routes */}
             <Route path="/" element={
               <MatriculaRoute>
+                <HomePage />
+              </MatriculaRoute>
+            } />
+            
+            {/* Backup route for original home page */}
+            <Route path="/home-original" element={
+              <MatriculaRoute>
                 <Index />
               </MatriculaRoute>
             } />
+            
             <Route path="/identificacao" element={<IdentificacaoAluno />} />
             
             <Route path="/matriculas-recentes" element={
@@ -76,8 +91,25 @@ const App = () => (
               </MatriculaRoute>
             } />
 
-            {/* Rematrícula V2 - Nova arquitetura independente */}
-            <Route path="/rematricula" element={
+            {/* Rematrícula V2 - Redirect to root since it's now the home page */}
+            <Route path="/rematricula" element={<Navigate to="/" replace />} />
+            {/* Novo padrão: navegação por slug + selection_token (sem expor CPF) */}
+            <Route path="/rematricula/detalhe/:student_name_slug" element={
+              <MatriculaRoute>
+                <RematriculaDetailsPage />
+              </MatriculaRoute>
+            } />
+            <Route path="/rematricula/busca" element={
+              <MatriculaRoute>
+                <RematriculaBuscaPage />
+              </MatriculaRoute>
+            } />
+            <Route path="/rematricula/detalhe/:cpf" element={
+              <MatriculaRoute>
+                <RematriculaDetailsPage />
+              </MatriculaRoute>
+            } />
+            <Route path="/rematricula/form/:cpf" element={
               <MatriculaRoute>
                 <RematriculaPage />
               </MatriculaRoute>
@@ -108,6 +140,11 @@ const App = () => (
                   <EnrollmentsList />
                 </AdminRoute>
               } />
+              <Route path="matriculas/descontos" element={
+                <AdminRoute requiredRole="operador">
+                  <EnrollmentDiscountsView />
+                </AdminRoute>
+              } />
               <Route path="matriculas/:id" element={
                 <AdminRoute requiredRole="coordenador">
                   <EnrollmentEdit />
@@ -128,6 +165,11 @@ const App = () => (
                   <SeriesManagement />
                 </AdminRoute>
               } />
+              <Route path="inadimplentes" element={
+                <AdminRoute requiredRole="coordenador">
+                  <InadimplentesManagement />
+                </AdminRoute>
+              } />
               <Route path="trilhos" element={
                 <AdminRoute requiredRole="operador">
                   <TrackManagement />
@@ -140,7 +182,7 @@ const App = () => (
               } />
               <Route path="configuracoes" element={
                 <AdminRoute requiredRole="super_admin">
-                  <div>Configurações do Sistema (Em breve)</div>
+                  <SystemConfigurations />
                 </AdminRoute>
               } />
             </Route>

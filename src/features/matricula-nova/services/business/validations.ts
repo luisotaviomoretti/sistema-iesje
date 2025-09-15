@@ -9,9 +9,9 @@ const studentSchema = z.object({
     .max(VALIDATION_RULES.MAX_NAME_LENGTH, ERROR_MESSAGES.MAX_NAME_LENGTH)
     .trim(),
   
-  cpf: z.string()
-    .regex(VALIDATION_RULES.CPF_REGEX, ERROR_MESSAGES.INVALID_CPF)
-    .refine(isValidCpf, 'CPF inválido'),
+  // CPF passa a ser OPCIONAL no fluxo de nova matrícula
+  // Quando informado, será validado pelos validadores individuais
+  cpf: z.string().optional().or(z.literal('')),
   
   rg: z.string()
     .optional()
@@ -37,9 +37,8 @@ const guardianSchema = z.object({
     .max(VALIDATION_RULES.MAX_NAME_LENGTH, ERROR_MESSAGES.MAX_NAME_LENGTH)
     .trim(),
   
-  cpf: z.string()
-    .regex(VALIDATION_RULES.CPF_REGEX, ERROR_MESSAGES.INVALID_CPF)
-    .refine(isValidCpf, 'CPF inválido'),
+  // CPF do responsável também opcional
+  cpf: z.string().optional().or(z.literal('')),
   
   phone: z.string()
     .regex(VALIDATION_RULES.PHONE_REGEX, ERROR_MESSAGES.INVALID_PHONE),
@@ -233,22 +232,18 @@ export function validateStep(stepNumber: number, formData: any): {
   try {
     switch (stepNumber) {
       case 0: // Dados do aluno - Validação básica para navegação
-        if (formData.student?.name && formData.student?.cpf) {
-          // Só valida formato se foi preenchido
-          if (formData.student.cpf && !VALIDATION_RULES.CPF_REGEX.test(formData.student.cpf)) {
-            errors.push('CPF deve estar no formato correto')
-          }
-          // Valida CPF apenas se estiver com formato correto
-          if (formData.student.cpf && VALIDATION_RULES.CPF_REGEX.test(formData.student.cpf) && !isValidCpf(formData.student.cpf)) {
-            errors.push('CPF inválido')
+        if (formData.student?.name) {
+          // Validação básica de nome
+          if (!formData.student.name.trim()) {
+            errors.push('Nome do aluno é obrigatório')
           }
         }
         return { isValid: errors.length === 0, errors }
       
       case 1: // Responsáveis - Validação básica
-        if (formData.guardians?.guardian1?.name && formData.guardians?.guardian1?.cpf) {
-          if (formData.guardians.guardian1.cpf && !VALIDATION_RULES.CPF_REGEX.test(formData.guardians.guardian1.cpf)) {
-            errors.push('CPF do responsável deve estar no formato correto')
+        if (formData.guardians?.guardian1?.name) {
+          if (!formData.guardians.guardian1.name.trim()) {
+            errors.push('Nome do responsável é obrigatório')
           }
           if (formData.guardians.guardian1.email && !VALIDATION_RULES.EMAIL_REGEX.test(formData.guardians.guardian1.email)) {
             errors.push('Email deve ter formato válido')
@@ -352,7 +347,6 @@ export function validateRequiredFields(stepNumber: number, formData: any): {
   switch (stepNumber) {
     case 0: // Dados do aluno
       if (!formData.student?.name?.trim()) missingFields.push('Nome do aluno')
-      if (!formData.student?.cpf?.trim()) missingFields.push('CPF do aluno') 
       if (!formData.student?.birthDate) missingFields.push('Data de nascimento')
       if (!formData.student?.gender) missingFields.push('Sexo do aluno')
       if (!formData.student?.escola) missingFields.push('Escola do aluno')
@@ -360,7 +354,6 @@ export function validateRequiredFields(stepNumber: number, formData: any): {
       
     case 1: // Responsáveis
       if (!formData.guardians?.guardian1?.name?.trim()) missingFields.push('Nome do responsável')
-      if (!formData.guardians?.guardian1?.cpf?.trim()) missingFields.push('CPF do responsável')
       if (!formData.guardians?.guardian1?.phone?.trim()) missingFields.push('Telefone do responsável')
       if (!formData.guardians?.guardian1?.email?.trim()) missingFields.push('Email do responsável')
       break
@@ -396,7 +389,8 @@ export const validators = {
    * Validar CPF
    */
   cpf: (value: string): { valid: boolean; message: string } => {
-    if (!value) return { valid: false, message: 'CPF é obrigatório' }
+    // CPF passa a ser opcional: quando vazio, é considerado válido (sem mensagem)
+    if (!value) return { valid: true, message: '' }
     
     const cleanValue = value.replace(/\D/g, '')
     if (cleanValue.length !== 11) {

@@ -159,7 +159,6 @@ export default function SummaryStep(props: StepProps) {
     
     // Check required fields
     if (!studentData?.name) errors.push('Nome do aluno é obrigatório')
-    if (!studentData?.cpf) errors.push('CPF do aluno é obrigatório')
     if (!guardiansData?.guardian1?.name) errors.push('Responsável principal é obrigatório')
     if (!addressData?.cep) errors.push('Endereço é obrigatório')
     if (!academicData?.seriesId) errors.push('Série deve ser selecionada')
@@ -249,14 +248,26 @@ export default function SummaryStep(props: StepProps) {
       setErrorMessage(undefined)
 
       // 1) Criar matrícula no banco ANTES de gerar o PDF
-      // NOVO: Incluindo informações do usuário atual para rastreamento
-      const enrollmentId = await EnrollmentApiService.createEnrollmentRecord(
-        formData,
-        props.pricing!,
-        selectedSeries,
-        selectedTrack,
-        currentUser // Passando informações do usuário atual
-      )
+      // Preferir RPC transacional (idempotente); fallback para método existente em caso de erro
+      let enrollmentId: string
+      try {
+        enrollmentId = await EnrollmentApiService.finalizeEnrollmentViaRpc(
+          formData,
+          props.pricing!,
+          selectedSeries,
+          selectedTrack,
+          currentUser
+        )
+      } catch (rpcError) {
+        console.warn('Falha na RPC enroll_finalize; aplicando fallback createEnrollmentRecord:', rpcError)
+        enrollmentId = await EnrollmentApiService.createEnrollmentRecord(
+          formData,
+          props.pricing!,
+          selectedSeries,
+          selectedTrack,
+          currentUser
+        )
+      }
 
       // 2) Preparar dados da proposta (PDF)
       const proposalData: ProposalData = {

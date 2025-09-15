@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase, type CepRange, type CepRangeInsert, type CepRangeUpdate } from '@/lib/supabase'
-import { type CepCategory } from '@/features/enrollment/hooks/useEligibleDiscounts'
+import { type CepCategory } from '@/features/enrollment/types/eligibility'
 
 // Hook para listar faixas de CEP
 export const useCepRanges = (includeInactive = false) => {
@@ -207,7 +207,7 @@ export const useCepClassification = (cep: string | undefined) => {
       return finalResult;
     },
     enabled: !!cep && cep.replace(/\D/g, '').length === 8,
-    staleTime: 15 * 60 * 1000, // 15 minutos (CEPs mudam raramente)
+    staleTime: 30 * 60 * 1000, // 30 minutos (CEPs mudam raramente)
     gcTime: 60 * 60 * 1000, // 1 hora
   })
 }

@@ -83,6 +83,12 @@ const AdminLayout = () => {
       requiredRole: 'coordenador' as const
     },
     {
+      name: 'Inadimplentes',
+      href: '/admin/inadimplentes',
+      icon: Shield,
+      requiredRole: 'coordenador' as const
+    },
+    {
       name: 'Usuários',
       href: '/admin/usuarios',
       icon: Users,

@@ -13,6 +13,7 @@ export interface AdminEnrollmentFilters {
   search?: string
   orderBy?: 'created_at' | 'student_name' | 'final_monthly_value'
   orderDir?: 'asc' | 'desc'
+  origin?: 'novo_aluno' | 'rematricula' | 'null'
 }
 
 export function useAdminEnrollments(
@@ -30,6 +31,7 @@ export function useAdminEnrollments(
     search: params.search?.trim() || undefined,
     orderBy: params.orderBy ?? 'created_at',
     orderDir: params.orderDir ?? 'desc',
+    origin: params.origin,
   }), [params])
 
   return useQuery<{ data: EnrollmentRecord[]; count: number }>({
@@ -39,4 +41,3 @@ export function useAdminEnrollments(
     staleTime: 15_000,
   })
 }
-

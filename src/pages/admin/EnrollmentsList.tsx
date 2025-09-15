@@ -58,6 +58,7 @@ const EnrollmentsList: React.FC = () => {
   const [status, setStatus] = useState<AdminEnrollmentFilters['status']>(undefined)
   const [escola, setEscola] = useState<AdminEnrollmentFilters['escola']>(undefined)
   const [includeDeleted, setIncludeDeleted] = useState(false)
+  const [origin, setOrigin] = useState<'all' | 'novo_aluno' | 'Rematricula' | 'null'>('all')
   const [dateFrom, setDateFrom] = useState<string | undefined>(undefined)
   const [dateTo, setDateTo] = useState<string | undefined>(undefined)
 
@@ -72,6 +73,7 @@ const EnrollmentsList: React.FC = () => {
     search,
     orderBy: 'created_at',
     orderDir: 'desc',
+    origin: origin === 'all' ? undefined : (origin === 'null' ? 'null' : origin),
   })
 
   const softDelete = useSoftDeleteEnrollment()
@@ -124,6 +126,7 @@ const EnrollmentsList: React.FC = () => {
     setIncludeDeleted(false)
     setDateFrom(undefined)
     setDateTo(undefined)
+    setOrigin('all')
   }
 
   return (
@@ -148,7 +151,7 @@ const EnrollmentsList: React.FC = () => {
           <CardTitle>Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
             <div className="md:col-span-2">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
@@ -193,6 +196,19 @@ const EnrollmentsList: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Select value={origin} onValueChange={(v) => { setPage(1); setOrigin(v as any) }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as Origens</SelectItem>
+                  <SelectItem value="novo_aluno">Novo aluno</SelectItem>
+                  <SelectItem value="rematricula">Rematricula</SelectItem>
+                  <SelectItem value="null">Sem tag</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center gap-2">
               <Switch checked={includeDeleted} onCheckedChange={(v) => { setPage(1); setIncludeDeleted(v) }} />
               <span className="text-sm text-muted-foreground">Incluir excluídos</span>
@@ -217,8 +233,11 @@ const EnrollmentsList: React.FC = () => {
 
       {/* Tabela */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Matrículas ({total})</CardTitle>
+          <Button size="sm" variant="outline" asChild title="Ver relatório da view de descontos aplicados">
+            <Link to="/admin/matriculas/descontos">Relatório de Descontos</Link>
+          </Button>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -242,6 +261,7 @@ const EnrollmentsList: React.FC = () => {
                     <TableHead className="text-right">Base</TableHead>
                     <TableHead className="text-right">% Desc.</TableHead>
                     <TableHead className="text-right">Valor Final</TableHead>
+                    <TableHead>Origem</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -258,6 +278,15 @@ const EnrollmentsList: React.FC = () => {
                       <TableCell className="text-right">{BRL(Number(e.base_value))}</TableCell>
                       <TableCell className="text-right">{Number(e.total_discount_percentage || 0)}%</TableCell>
                       <TableCell className="text-right">{BRL(Number(e.final_monthly_value))}</TableCell>
+                      <TableCell>
+                        {e.tag_matricula ? (
+                          <Badge variant={e.tag_matricula === 'rematricula' ? 'secondary' : 'default'} className="text-xs w-fit">
+                            {e.tag_matricula === 'rematricula' ? 'Rematricula' : 'Novo aluno'}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button size="sm" variant="outline" asChild>
                           <Link to={`/admin/matriculas/${e.id}`}>Ver/Editar</Link>
@@ -308,3 +337,4 @@ const EnrollmentsList: React.FC = () => {
 }
 
 export default EnrollmentsList
+

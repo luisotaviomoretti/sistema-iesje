@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { cpfIsValid } from '@/features/enrollment/utils/validation'
+// Observação: nesta etapa (identificação/roteamento inicial), não aplicamos
+// a validação de dígito verificador do CPF. Apenas exigimos 11 dígitos
+// numéricos para permitir a verificação de elegibilidade no backend.
 
 export type ValidationState = 'idle' | 'validating' | 'ready' | 'error'
 export type ValidationResult = 'not_found' | 'previous_year' | 'current_year'
@@ -33,10 +35,10 @@ export function useStudentValidation() {
       console.log('input:', cpfInput, 'digits:', digits)
       console.log('env.VITE_SUPABASE_URL:', supabaseUrl)
     }
-    if (!cpfIsValid(digits)) {
+    if (digits.length !== 11) {
       setHookState({ state: 'error', result: null, error: 'CPF inválido' })
       if (dev) {
-        console.warn('[validateCPF] invalid cpf format')
+        console.warn('[validateCPF] invalid cpf length')
         console.groupEnd()
       }
       return { ok: false as const, error: 'invalid' as const }

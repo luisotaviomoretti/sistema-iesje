@@ -1,6 +1,9 @@
 import React, { useEffect, useRef } from 'react'
 import { Controller } from 'react-hook-form'
 import { User, Calendar, CreditCard, Users, School } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { prefetchDiscountTypes, prefetchSeries } from '@/features/enrollment/prefetch/prefetchers'
+import type { EscolaType } from '@/features/admin/hooks/useSeries'
 
 // Components
 import { FormField } from '../ui/FormField'
@@ -47,6 +50,15 @@ export default function StudentFormStep(props: StepProps) {
   const lockedFormEscola = mapMatriculaUserEscolaToFormValue(lockedDbEscola)
   const isEscolaLocked = Boolean(lockedFormEscola)
   const lockedEscolaLabel = labelFromDbValue(lockedDbEscola)
+  // Mapear escola bloqueada para o formato do banco ('Pelicano' | 'Sete de Setembro')
+  const escolaPrefetch: EscolaType | undefined =
+    lockedDbEscola === 'Pelicano' || lockedDbEscola === 'Sete de Setembro'
+      ? (lockedDbEscola as EscolaType)
+      : lockedFormEscola === 'pelicano'
+        ? 'Pelicano'
+        : lockedFormEscola === 'sete_setembro'
+          ? 'Sete de Setembro'
+          : undefined
 
   // Debug para verificar o form
   console.log('StudentFormStep - form:', form)
@@ -59,9 +71,18 @@ export default function StudentFormStep(props: StepProps) {
   const cpfValue = form.watch('student.cpf') as string | undefined
   const cpfCheck = useCpfUniqueness(cpfValue)
   const duplicateToastShownRef = useRef<string | null>(null)
+  const queryClient = useQueryClient()
+  const prefetchTriggeredRef = useRef(false)
+  const prefetchDebounceRef = useRef<number | null>(null)
 
   useEffect(() => {
     try {
+      // Quando CPF estiver vazio, limpar erros e toasts de duplicidade
+      if (!cpfValue || (cpfValue.replace(/\D/g, '').length === 0)) {
+        try { form.clearErrors('student.cpf') } catch {}
+        duplicateToastShownRef.current = null
+        return
+      }
       const cpfValidation = cpfValue ? validators.cpf(cpfValue) : { valid: false }
 
       if (cpfValidation.valid && cpfCheck.exists) {
@@ -91,6 +112,31 @@ export default function StudentFormStep(props: StepProps) {
       console.warn('[StudentFormStep] Falha ao verificar CPF duplicado:', e)
     }
   }, [cpfValue, cpfCheck.exists])
+
+  // Prefetch inteligente (debounced) quando CPF torna-se válido (11 dígitos) — executa uma vez por sessão/página
+  useEffect(() => {
+    const digits = (cpfValue || '').replace(/\D/g, '')
+    if (digits.length === 11 && !prefetchTriggeredRef.current) {
+      if (prefetchDebounceRef.current) {
+        window.clearTimeout(prefetchDebounceRef.current)
+      }
+      prefetchDebounceRef.current = window.setTimeout(async () => {
+        try {
+          prefetchTriggeredRef.current = true
+          await prefetchDiscountTypes(queryClient)
+          await prefetchSeries(queryClient, escolaPrefetch)
+        } catch {
+          // silencioso: prefetch não deve quebrar fluxo
+        }
+      }, 400)
+    }
+    return () => {
+      if (prefetchDebounceRef.current) {
+        window.clearTimeout(prefetchDebounceRef.current)
+        prefetchDebounceRef.current = null
+      }
+    }
+  }, [cpfValue, queryClient])
 
   return (
     <div className="space-y-6">
@@ -167,7 +213,6 @@ export default function StudentFormStep(props: StepProps) {
               <FormField
                 label="CPF"
                 error={fieldState.error?.message}
-                required
                 id="student-cpf"
               >
                 <Input
@@ -302,7 +347,7 @@ export default function StudentFormStep(props: StepProps) {
                   options={genderOptions}
                 />
                 <ValidationFeedback
-                  isValid={!fieldState.error && field.value}
+                  isValid={!fieldState.error && !!field.value}
                   isInvalid={!!fieldState.error}
                   message={fieldState.error?.message}
                   showSuccess={true}
@@ -328,7 +373,7 @@ export default function StudentFormStep(props: StepProps) {
                 error={fieldState.error?.message}
                 required
                 id="student-escola"
-                hint={
+                description={
                   isEscolaLocked
                     ? `Definido pelo seu perfil${lockedEscolaLabel ? `: ${lockedEscolaLabel}` : ''}`
                     : 'Selecione a unidade escolar do aluno'
@@ -345,7 +390,7 @@ export default function StudentFormStep(props: StepProps) {
                   title={isEscolaLocked ? 'Campo bloqueado pela sua escola de usuário' : undefined}
                 />
                 <ValidationFeedback
-                  isValid={!fieldState.error && field.value}
+                  isValid={!fieldState.error && !!field.value}
                   isInvalid={!!fieldState.error}
                   message={fieldState.error?.message}
                   showSuccess={true}

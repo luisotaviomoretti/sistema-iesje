@@ -105,7 +105,7 @@ export function GuardianForm({ form, guardianIndex, required = true }: GuardianF
             <FormField
               label="CPF"
               error={fieldState.error?.message}
-              required={required}
+              required={false}
               id={`guardian${guardianIndex}-cpf`}
             >
               <Input

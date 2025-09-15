@@ -7,6 +7,8 @@ export type ShiftType = 'morning' | 'afternoon' | 'night'
 export type EnrollmentStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'deleted'
 export type ApprovalLevel = 'automatic' | 'coordinator' | 'director'
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
+// Origem do fluxo (Fase 1/2)
+export type TagMatricula = 'novo_aluno' | 'rematricula'
 
 export interface EnrollmentRecord {
   id: string
@@ -64,6 +66,9 @@ export interface EnrollmentRecord {
   approval_level?: ApprovalLevel
   approval_status: ApprovalStatus
 
+  // Tag de origem do fluxo (nova coluna em enrollments)
+  tag_matricula?: TagMatricula | null
+
   // Timestamps
   created_at: string // ISO datetime
   updated_at: string // ISO datetime
@@ -103,4 +108,3 @@ export interface EnrollmentDocumentRecord {
   upload_date?: string // ISO datetime
   created_at: string // ISO datetime
 }
-

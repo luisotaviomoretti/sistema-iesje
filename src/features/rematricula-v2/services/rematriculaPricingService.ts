@@ -17,7 +17,7 @@ import type {
 export class RematriculaPricingService {
   
   // Limite máximo de desconto cumulativo
-  private static readonly MAX_DISCOUNT_PERCENTAGE = 60
+  private static readonly MAX_DISCOUNT_PERCENTAGE = 101
   private static readonly MAX_DISCOUNT_INTEGRAL = 100
   
   // Códigos de bolsas integrais
@@ -32,6 +32,12 @@ export class RematriculaPricingService {
     discounts: DatabaseDiscount[]
   ): RematriculaPricing {
     
+    // Debug logging
+    if (import.meta.env.DEV) {
+      console.log('[RematriculaPricingService] Input series:', series)
+      console.log('[RematriculaPricingService] Input discounts:', discounts)
+    }
+    
     // Extrair valores da série
     // Compatibilidade com diferentes estruturas de dados
     const baseValue = (series as any).valor_mensal_sem_material || 
@@ -42,6 +48,14 @@ export class RematriculaPricingService {
     
     const totalValue = (series as any).valor_mensal_com_material || 
                       (baseValue + materialValue)
+    
+    if (import.meta.env.DEV) {
+      console.log('[RematriculaPricingService] Extracted values:', {
+        baseValue,
+        materialValue,
+        totalValue
+      })
+    }
     
     // Validação inicial
     if (!baseValue || baseValue <= 0) {
@@ -225,17 +239,9 @@ export class RematriculaPricingService {
     if (integralDiscounts.length > 1) {
       errors.push('Não é possível combinar múltiplos descontos de 100%')
     }
-    
-    // Verificar desconto à vista com outros grandes descontos
-    if (codes.includes('PAV')) {
-      const otherSignificantDiscounts = discounts.filter(d => 
-        d.codigo.toUpperCase() !== 'PAV' && (d.percentual || 0) > 10
-      )
-      if (otherSignificantDiscounts.length > 0) {
-        warnings.push('Desconto à vista geralmente não é combinado com outros descontos significativos')
-      }
-    }
-    
+    // Observação informativa sobre PAV com outros descontos foi removida daqui
+    // para evitar acoplamento com coleções de warnings. Mantemos apenas erros.
+
     return errors
   }
   

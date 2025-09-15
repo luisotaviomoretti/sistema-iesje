@@ -89,9 +89,6 @@ export function validateProposalData(data: ProposalData): {
   if (!data.formData.student?.name) {
     errors.push('Nome do aluno é obrigatório')
   }
-  if (!data.formData.student?.cpf) {
-    errors.push('CPF do aluno é obrigatório')
-  }
 
   // Validar responsáveis
   if (!data.formData.guardians?.guardian1?.name) {

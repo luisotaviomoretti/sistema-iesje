@@ -164,6 +164,54 @@ export type Database = {
         Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'timestamp'>
         Update: Partial<Database['public']['Tables']['audit_logs']['Insert']>
       }
+      inadimplentes: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          created_by: string | null
+          updated_by: string | null
+          is_active: boolean
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_reason: string | null
+          source: string | null
+          codigo_inadim: string | null
+          student_name: string
+          guardian1_name: string | null
+          student_escola: string | null
+          meses_inadim: number | null
+          student_name_norm: string
+          guardian1_name_norm: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['inadimplentes']['Row'], 'id' | 'created_at' | 'updated_at' | 'student_name_norm' | 'guardian1_name_norm'>
+        Update: Partial<Database['public']['Tables']['inadimplentes']['Insert']>
+      }
+      inadimplentes_audit: {
+        Row: {
+          id: string
+          created_at: string
+          inadimplente_id: string | null
+          action: 'insert' | 'update' | 'soft_delete' | 'restore' | 'import'
+          snapshot: any
+          actor: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['inadimplentes_audit']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['inadimplentes_audit']['Insert']>
+      }
+      staging_inadimplentes_raw: {
+        Row: {
+          id: string
+          created_at: string
+          uploaded_by: string | null
+          csv_row: any
+          batch_id: string
+          processed: boolean
+          error: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['staging_inadimplentes_raw']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['staging_inadimplentes_raw']['Insert']>
+      }
       trilhos_desconto: {
         Row: {
           id: string

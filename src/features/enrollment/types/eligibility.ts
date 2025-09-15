@@ -286,7 +286,7 @@ export const KNOWN_DISCOUNT_CODES = {
  */
 export const ELIGIBILITY_DEFAULTS = {
   CACHE_TIME: 5 * 60 * 1000, // 5 minutos
-  STALE_TIME: 15 * 60 * 1000, // 15 minutos
+  STALE_TIME: 10 * 60 * 1000, // 10 minutos
   MAX_RETRIES: 3,
   RETRY_DELAY: 1000,
   ENABLE_DEBUG: process.env.NODE_ENV === 'development'

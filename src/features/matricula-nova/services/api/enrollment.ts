@@ -13,7 +13,7 @@ export class EnrollmentApiService {
   /**
    * Cria nova matrícula
    */
-  static async createEnrollment(formData: EnrollmentFormData): Promise<ApiResponse<DatabaseEnrollment>> {
+  static async createEnrollment(formData: EnrollmentFormData, currentUser?: CurrentUserInfo): Promise<ApiResponse<DatabaseEnrollment>> {
     try {
       // Inserção compatível com o novo schema normalizado (migração 014)
       // Mantém a assinatura e tipo de retorno para não quebrar chamadas existentes.
@@ -23,7 +23,7 @@ export class EnrollmentApiService {
         0
       )
 
-      const mapped = this.mapFormToDatabaseMinimal(formData, totalDiscountPercentage)
+      const mapped = this.mapFormToDatabaseMinimal(formData, totalDiscountPercentage, currentUser)
 
       const { data: created, error } = await supabase
         .from('enrollments')
@@ -42,7 +42,7 @@ export class EnrollmentApiService {
           .from('matriculas')
           .insert({
             aluno_nome: formData.student?.name || '',
-            aluno_cpf: formData.student?.cpf || '',
+            aluno_cpf: (formData.student?.cpf && formData.student.cpf.trim().length > 0) ? formData.student.cpf : null,
             escola: 'sete_setembro', // Default
             trilho_escolhido: EnrollmentApiService.mapTrackIdToName(formData.academic?.trackId),
             cap_aplicado: null, // Será calculado posteriormente
@@ -119,6 +119,56 @@ export class EnrollmentApiService {
       console.error('Erro ao criar matrícula (record):', err)
       throw new Error('Falha ao salvar matrícula no banco de dados')
     }
+  }
+
+  /**
+   * Finaliza matrícula via RPC transacional (enroll_finalize)
+   * - Insere enrollment + discounts de forma atômica
+   * - Usa client_tx_id para idempotência
+   * - Mantém compatibilidade: retorna apenas enrollment_id
+   */
+  static async finalizeEnrollmentViaRpc(
+    formData: EnrollmentFormData,
+    pricing: PricingCalculation,
+    seriesInfo: any,
+    trackInfo: any,
+    currentUser?: CurrentUserInfo
+  ): Promise<string> {
+    // Gera um client_tx_id idempotente
+    const clientTxId = this.generateClientTxId()
+
+    // Monta payload conforme contrato da RPC
+    const enrollmentPayload = this.mapFormToDatabaseFull(formData, pricing, seriesInfo, trackInfo, currentUser)
+
+    // Mapear descontos selecionados com detalhes do cálculo
+    const discountsPayload = (formData.selectedDiscounts || []).map((selected) => {
+      const pricingDiscount = (pricing?.discounts || []).find((d: any) => d.id === selected.id)
+      return {
+        discount_id: selected.id,
+        discount_code: pricingDiscount?.code || '',
+        discount_name: pricingDiscount?.name || '',
+        discount_category: pricingDiscount?.category || 'unknown',
+        percentage_applied: selected.percentual,
+        value_applied: pricingDiscount?.value || 0,
+      }
+    })
+
+    const { data, error } = await supabase.rpc('enroll_finalize', {
+      p_enrollment: enrollmentPayload as any,
+      p_discounts: discountsPayload as any,
+      p_client_tx_id: clientTxId,
+    })
+
+    if (error) {
+      console.error('RPC enroll_finalize error:', error)
+      throw error
+    }
+
+    const enrollmentId = (data as any)?.enrollment_id || (Array.isArray(data) ? (data[0] as any)?.enrollment_id : null)
+    if (!enrollmentId) {
+      throw new Error('Falha ao obter enrollment_id da RPC enroll_finalize')
+    }
+    return enrollmentId
   }
 
   /**
@@ -382,40 +432,72 @@ export class EnrollmentApiService {
     return (data as unknown as EnrollmentRecord[]) || []
   }
 
+  /**
+   * Lista matrículas recentes CRIADAS PELO USUÁRIO ATUAL (com relacionamentos)
+   * - Filtra por autoria segura no servidor (created_by_user_id e type)
+   * - Exclui registros deletados
+   * - Ordena por created_at desc
+   */
+  static async getMyRecentEnrollmentsWithDetails(
+    limit: number = 50,
+    currentUser: CurrentUserInfo
+  ): Promise<EnrollmentRecord[]> {
+    // Se não há usuário identificado, retornar lista vazia sem consultar
+    if (!currentUser || !currentUser.id) return []
+
+    const { data, error } = await supabase
+      .from('enrollments')
+      .select(`
+        *,
+        discounts:enrollment_discounts(*),
+        documents:enrollment_documents(*)
+      `)
+      .eq('created_by_user_id', currentUser.id)
+      .eq('created_by_user_type', currentUser.type)
+      .neq('status', 'deleted')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error) throw error
+    return (data as unknown as EnrollmentRecord[]) || []
+  }
+
   // =====================
   // Admin — Listagem com filtros/paginação
   // =====================
 
   static async listAdminEnrollments(params?: {
-    page?: number
-    pageSize?: number
-    includeDeleted?: boolean
-    status?: Array<'draft' | 'submitted' | 'approved' | 'rejected' | 'deleted'>
-    escola?: 'pelicano' | 'sete_setembro'
-    seriesId?: string
-    dateFrom?: string // ISO date/datetime
-    dateTo?: string   // ISO date/datetime
-    search?: string   // nome ou CPF
-    orderBy?: 'created_at' | 'student_name' | 'final_monthly_value'
-    orderDir?: 'asc' | 'desc'
-  }): Promise<{ data: EnrollmentRecord[]; count: number }> {
-    const {
-      page = 1,
-      pageSize = 20,
-      includeDeleted = false,
-      status,
-      escola,
-      seriesId,
-      dateFrom,
-      dateTo,
-      search,
-      orderBy = 'created_at',
-      orderDir = 'desc',
-    } = params || {}
+      page?: number
+      pageSize?: number
+      includeDeleted?: boolean
+      status?: Array<'draft' | 'submitted' | 'approved' | 'rejected' | 'deleted'>
+      escola?: 'pelicano' | 'sete_setembro'
+      seriesId?: string
+      dateFrom?: string // ISO date/datetime
+      dateTo?: string   // ISO date/datetime
+      search?: string   // nome ou CPF
+      orderBy?: 'created_at' | 'student_name' | 'final_monthly_value'
+      orderDir?: 'asc' | 'desc'
+      origin?: 'novo_aluno' | 'rematricula' | 'null'
+    }): Promise<{ data: EnrollmentRecord[]; count: number }> {
+      const {
+        page = 1,
+        pageSize = 20,
+        includeDeleted = false,
+        status,
+        escola,
+        seriesId,
+        dateFrom,
+        dateTo,
+        search,
+        orderBy = 'created_at',
+        orderDir = 'desc',
+        origin,
+      } = params || {}
 
-    let query = supabase
-      .from('enrollments')
-      .select('*', { count: 'exact' })
+      let query = supabase
+        .from('enrollments')
+        .select('*', { count: 'exact' })
 
     if (!includeDeleted) {
       query = query.neq('status', 'deleted')
@@ -435,11 +517,16 @@ export class EnrollmentApiService {
     if (dateTo) {
       query = query.lte('created_at', dateTo)
     }
-    if (search && search.trim()) {
-      const term = search.trim()
-      // buscar por nome (ilike) OU CPF (contains)
-      query = query.or(`student_name.ilike.%${term}%,student_cpf.ilike.%${term}%`)
-    }
+      if (search && search.trim()) {
+        const term = search.trim()
+        // buscar por nome (ilike) OU CPF (contains)
+        query = query.or(`student_name.ilike.%${term}%,student_cpf.ilike.%${term}%`)
+      }
+      if (origin === 'novo_aluno' || origin === 'rematricula') {
+        query = query.eq('tag_matricula', origin)
+      } else if (origin === 'null') {
+        query = (query as any).is('tag_matricula', null)
+      }
 
     // Ordenação e paginação
     query = query.order(orderBy, { ascending: orderDir === 'asc' })
@@ -602,9 +689,6 @@ export class EnrollmentApiService {
       if (!formData.student.name?.trim()) {
         errors.push('Nome do aluno é obrigatório')
       }
-      if (!formData.student.cpf?.trim()) {
-        errors.push('CPF do aluno é obrigatório')
-      }
       if (!formData.student.birthDate) {
         errors.push('Data de nascimento é obrigatória')
       }
@@ -618,9 +702,7 @@ export class EnrollmentApiService {
       if (!guardian1.name?.trim()) {
         errors.push('Nome do responsável é obrigatório')
       }
-      if (!guardian1.cpf?.trim()) {
-        errors.push('CPF do responsável é obrigatório')
-      }
+      // CPF do responsável deixa de ser obrigatório
       if (!guardian1.phone?.trim()) {
         errors.push('Telefone do responsável é obrigatório')
       }
@@ -689,7 +771,11 @@ export class EnrollmentApiService {
   }
 
   // Mapeamento mínimo (sem pricing) para manter compatibilidade do método antigo
-  private static mapFormToDatabaseMinimal(formData: EnrollmentFormData, totalDiscountPercentage: number) {
+  private static mapFormToDatabaseMinimal(
+    formData: EnrollmentFormData,
+    totalDiscountPercentage: number,
+    currentUser?: CurrentUserInfo
+  ) {
     const toDateOnly = (value?: string) => {
       if (!value) return null
       // tenta normalizar para YYYY-MM-DD
@@ -703,10 +789,14 @@ export class EnrollmentApiService {
         return null
       }
     }
+    const toNullable = (s?: string) => {
+      const v = (s || '').trim()
+      return v.length > 0 ? v : null
+    }
     return {
       // Dados do aluno
       student_name: formData.student.name,
-      student_cpf: formData.student.cpf,
+      student_cpf: toNullable(formData.student.cpf),
       student_rg: formData.student.rg || null,
       student_birth_date: toDateOnly(formData.student.birthDate),
       student_gender: formData.student.gender as any,
@@ -721,7 +811,7 @@ export class EnrollmentApiService {
 
       // Responsáveis
       guardian1_name: formData.guardians.guardian1.name,
-      guardian1_cpf: formData.guardians.guardian1.cpf,
+      guardian1_cpf: toNullable(formData.guardians.guardian1.cpf),
       guardian1_phone: formData.guardians.guardian1.phone,
       guardian1_email: formData.guardians.guardian1.email,
       guardian1_relationship: formData.guardians.guardian1.relationship,
@@ -752,6 +842,13 @@ export class EnrollmentApiService {
       status: 'draft',
       approval_level: this.getApprovalLevel(totalDiscountPercentage),
       approval_status: 'pending',
+      
+      // Rastreamento de usuário (quando disponível)
+      created_by_user_id: currentUser?.id || null,
+      created_by_user_email: currentUser?.email || null,
+      created_by_user_name: currentUser?.name || null,
+      created_by_user_type: currentUser?.type || 'anonymous',
+      // tag_matricula derivada no servidor (trigger BEFORE INSERT)
     }
   }
 
@@ -830,7 +927,23 @@ export class EnrollmentApiService {
       created_by_user_email: currentUser?.email || null,
       created_by_user_name: currentUser?.name || null,
       created_by_user_type: currentUser?.type || 'anonymous',
+      
+      // tag_matricula derivada no servidor (trigger BEFORE INSERT)
     }
+  }
+
+  // Gera UUID de forma segura com fallback
+  private static generateClientTxId(): string {
+    try {
+      // @ts-ignore
+      if (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function') {
+        // @ts-ignore
+        return (crypto as any).randomUUID()
+      }
+    } catch {}
+    // Fallback simples
+    const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1)
+    return `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`
   }
 
   // Persiste descontos aplicados
@@ -862,9 +975,10 @@ export class EnrollmentApiService {
     enrollmentId: string,
     _selectedDiscounts: Array<{ id: string; percentual: number }>
   ) {
+    // CPF não é mais obrigatório por padrão na nova matrícula
     const basicDocuments = [
-      { type: 'cpf_student', name: 'CPF do Aluno', required: true },
-      { type: 'cpf_guardian', name: 'CPF do Responsável', required: true },
+      { type: 'cpf_student', name: 'CPF do Aluno', required: false },
+      { type: 'cpf_guardian', name: 'CPF do Responsável', required: false },
       { type: 'comprovante_residencia', name: 'Comprovante de Residência', required: true },
     ]
 

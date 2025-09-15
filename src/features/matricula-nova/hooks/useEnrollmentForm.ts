@@ -6,6 +6,8 @@ import { toast } from 'sonner'
 import { enrollmentSchema, validateStep, validateRequiredFields } from '../services/business/validations'
 import { calculatePricing, determineApprovalLevel } from '../services/business/calculations'
 import { EnrollmentApiService } from '../services/api/enrollment'
+import { useCurrentUser, useCurrentUserAsync } from '@/features/enrollment/hooks/useCurrentUser'
+import type { CurrentUserInfo } from '@/features/enrollment/hooks/useCurrentUser'
 
 // Hooks de dados
 import { useDiscounts } from './data/useDiscounts'
@@ -85,6 +87,9 @@ export function useEnrollmentForm(): EnrollmentFormState & EnrollmentFormActions
 
   // Sessão de matrícula (apenas operadores de matrícula possuem este contexto)
   const matriculaSession = useMatriculaAuth()
+  // Usuário atual para rastreamento (admin/matrícula/anônimo)
+  const currentUser = useCurrentUser()
+  const { userInfo: asyncUser, isLoading: isUserLoading } = useCurrentUserAsync()
 
   // Estado local
   const [currentStep, setCurrentStep] = useState(FIRST_STEP)
@@ -95,6 +100,22 @@ export function useEnrollmentForm(): EnrollmentFormState & EnrollmentFormActions
   const watchedValues = form.watch()
   const selectedDiscounts = watchedValues.selectedDiscounts || []
   const academicData = watchedValues.academic
+  
+  // Resolve usuário para rastreamento (prioridade: admin > matrícula hook async > matrícula session > anônimo)
+  const resolvedUser: CurrentUserInfo = useMemo(() => {
+    if (currentUser && currentUser.type !== 'anonymous') return currentUser
+    if (asyncUser && asyncUser.type !== 'anonymous') return asyncUser
+    const mu = matriculaSession?.data?.matriculaUser as any
+    if (mu) {
+      return {
+        id: mu.id || mu.auth_user_id || null,
+        email: mu.email || null,
+        name: mu.nome || null,
+        type: 'matricula'
+      }
+    }
+    return currentUser
+  }, [currentUser, asyncUser, matriculaSession?.data?.matriculaUser])
   
   // Watch student data specifically for validation and escola
   const studentData = watchedValues.student
@@ -170,9 +191,9 @@ export function useEnrollmentForm(): EnrollmentFormState & EnrollmentFormActions
       
       // Aplicar percentual customizado se existir
       return {
-        ...discount,
-        percentual: customPercentual !== null ? customPercentual : discount.percentual
-      }
+        ...(discount as any),
+        percentual: customPercentual !== null ? customPercentual : (discount as any).percentual
+      } as any
     }).filter(Boolean) // Remove nulls
 
     // Calcular pricing
@@ -181,7 +202,7 @@ export function useEnrollmentForm(): EnrollmentFormState & EnrollmentFormActions
     
     return calculatePricing({
       baseValue,
-      discounts: selectedDiscountObjects,
+      discounts: selectedDiscountObjects as any,
       trackId: academicData.trackId
     })
   }, [academicData, selectedDiscounts, discounts, series])
@@ -221,10 +242,12 @@ export function useEnrollmentForm(): EnrollmentFormState & EnrollmentFormActions
       return
     }
 
-    // Regra extra: Step 0 (Dados do Aluno) não avança com erro no CPF (ex.: duplicidade)
+    // Regra extra (ajustada): no Step 0, só bloquear se houver ERRO e CPF estiver preenchido
     if (currentStep === FIRST_STEP) {
+      const cpfValue = form.getValues('student.cpf') as string | undefined
+      const hasCpf = !!(cpfValue && cpfValue.replace(/\D/g, '').length > 0)
       const cpfError = form.getFieldState('student.cpf').error
-      if (cpfError) {
+      if (hasCpf && cpfError) {
         toast.error('CPF inválido ou já cadastrado. Corrija antes de continuar.')
         return
       }
@@ -252,10 +275,12 @@ export function useEnrollmentForm(): EnrollmentFormState & EnrollmentFormActions
   const goToStep = useCallback((step: number) => {
     if (step >= FIRST_STEP && step <= LAST_STEP) {
       // Validar se pode ir para o step solicitado
-      // Proteção mínima: não permitir pular do Step 0 com erro de CPF
+      // Proteção mínima (ajustada): só bloquear se CPF estiver preenchido e com erro
       if (step > currentStep && currentStep === FIRST_STEP) {
+        const cpfValue = form.getValues('student.cpf') as string | undefined
+        const hasCpf = !!(cpfValue && cpfValue.replace(/\D/g, '').length > 0)
         const cpfError = form.getFieldState('student.cpf').error
-        if (cpfError) {
+        if (hasCpf && cpfError) {
           toast.error('CPF inválido ou já cadastrado. Corrija antes de avançar.')
           return
         }
@@ -281,8 +306,8 @@ export function useEnrollmentForm(): EnrollmentFormState & EnrollmentFormActions
         toast.warning(`Esta matrícula requer ${approvalInfo.description}`)
       }
 
-      // Submeter para API
-      const result = await EnrollmentApiService.createEnrollment(data)
+      // Submeter para API (gravação mínima + rastreamento de usuário)
+      const result = await EnrollmentApiService.createEnrollment(data, resolvedUser)
       
       if (result.error) {
         throw new Error(result.error)
@@ -324,10 +349,12 @@ export function useEnrollmentForm(): EnrollmentFormState & EnrollmentFormActions
     // Usar watchedValues ao invés de getValues() para ter valores atualizados
     const requiredValidation = validateRequiredFields(currentStep, watchedValues)
 
-    // Regra extra: bloquear se houver erro manual no CPF (ex.: duplicidade)
+    // Regra extra (ajustada): bloquear apenas se CPF estiver preenchido e com erro
     if (currentStep === 0) {
+      const cpfValue = form.getValues('student.cpf') as string | undefined
+      const hasCpf = !!(cpfValue && cpfValue.replace(/\D/g, '').length > 0)
       const cpfError = form.getFieldState('student.cpf').error
-      if (cpfError) {
+      if (hasCpf && cpfError) {
         return false
       }
     }

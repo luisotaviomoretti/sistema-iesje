@@ -40,7 +40,7 @@ interface PreviousYearFinance {
 export class FinancialCalculationEngine {
   
   // Configurações de negócio
-  private static readonly MAX_DISCOUNT_PERCENTAGE = 60
+  private static readonly MAX_DISCOUNT_PERCENTAGE = 101
   private static readonly MIN_MONTHLY_VALUE = 100 // Valor mínimo aceitável
   private static readonly LATE_PAYMENT_FEE = 2 // 2% de multa
   private static readonly DAILY_INTEREST_RATE = 0.033 // 0,033% ao dia (1% ao mês)
