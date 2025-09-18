@@ -18,7 +18,7 @@ import { useDiscountTypes } from "@/features/admin/hooks/useDiscountTypes";
 import { useCepStatistics } from "@/features/admin/hooks/useCepRanges";
 import { useSystemConfigs } from "@/features/admin/hooks/useSystemConfigs";
 import { useAdminAuth } from "@/features/admin/hooks/useAdminAuth";
-import EnrollmentsAreaChart from "@/features/admin/components/EnrollmentsAreaChart";
+// import EnrollmentsAreaChart from "@/features/admin/components/EnrollmentsAreaChart";
 
 const AdminDashboard = () => {
   console.log('🔥 AdminDashboard rendering...');
@@ -117,8 +117,8 @@ const AdminDashboard = () => {
         </p>
       </div>
 
-      {/* Matrículas por dia (Shadcn + Recharts) */}
-      <EnrollmentsAreaChart />
+      {/* Matrículas por dia (Shadcn + Recharts) - Temporariamente desabilitado */}
+      {/* <EnrollmentsAreaChart /> */}
 
       {/* Métricas Principais */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
