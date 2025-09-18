@@ -33,7 +33,10 @@
       "Bash(then cp -r supabase/functions/get_previous_year_student backups/2025-09-08/functions/)",
       "Bash(else echo \"get_previous_year_student não encontrado\")",
       "Bash(tree:*)",
-      "Bash(sha256sum:*)"
+      "Bash(sha256sum:*)",
+      "Bash(git remote add:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote:*)"
     ],
     "deny": [],
     "ask": []

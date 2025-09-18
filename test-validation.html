@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Validation</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-case {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 5px;
+        }
+        .success { border-color: #4ade80; }
+        .error { border-color: #f87171; }
+        .info { border-color: #60a5fa; }
+        pre {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 3px;
+            overflow: auto;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste de Validação - Rematrícula</h1>
+    
+    <div id="results"></div>
+    
+    <script>
+        const testCases = [
+            { cpf: '11111111111', name: 'Pedro Oliveira', expected: 'previous_year' },
+            { cpf: '10524864608', name: 'João Silva Santos', expected: 'previous_year' },
+            { cpf: '22222222222', name: 'Carlos Mendes', expected: 'already_enrolled' },
+            { cpf: '33333333333', name: 'Não existe', expected: 'new' }
+        ];
+        
+        function addResult(cpf, name, expected, result) {
+            const resultsDiv = document.getElementById('results');
+            const testDiv = document.createElement('div');
+            testDiv.className = 'test-case';
+            
+            const isCorrect = result.studentType === expected;
+            testDiv.classList.add(isCorrect ? 'success' : 'error');
+            
+            testDiv.innerHTML = `
+                <h3>CPF: ${cpf} - ${name}</h3>
+                <p><strong>Esperado:</strong> ${expected}</p>
+                <p><strong>Recebido:</strong> ${result.studentType || 'ERRO'}</p>
+                <p><strong>Status:</strong> ${isCorrect ? '✅ PASSOU' : '❌ FALHOU'}</p>
+                <pre>${JSON.stringify(result, null, 2)}</pre>
+            `;
+            
+            resultsDiv.appendChild(testDiv);
+        }
+        
+        async function runTests() {
+            document.getElementById('results').innerHTML = '<h2>Executando testes...</h2>';
+            
+            // Aguardar um pouco para garantir que o servidor está pronto
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            document.getElementById('results').innerHTML = '';
+            
+            for (const test of testCases) {
+                try {
+                    // Simular o que a página faz
+                    console.log(`Testando CPF: ${test.cpf} (${test.name})`);
+                    
+                    // Aqui vamos abrir a página e verificar o console
+                    const testWindow = window.open(
+                        `http://localhost:8081/rematricula?test_cpf=${test.cpf}`,
+                        `test_${test.cpf}`,
+                        'width=800,height=600'
+                    );
+                    
+                    // Aguardar um pouco
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    // Por enquanto, vamos apenas registrar que o teste foi executado
+                    addResult(test.cpf, test.name, test.expected, {
+                        studentType: 'verificar_console',
+                        message: 'Verifique o console do navegador na janela aberta'
+                    });
+                    
+                    testWindow.close();
+                    
+                } catch (error) {
+                    addResult(test.cpf, test.name, test.expected, {
+                        error: error.message
+                    });
+                }
+            }
+        }
+        
+        // Executar testes automaticamente
+        window.addEventListener('load', () => {
+            setTimeout(runTests, 1000);
+        });
+    </script>
+    
+    <button onclick="runTests()">Executar Testes Novamente</button>
+    <button onclick="window.open('http://localhost:8081/rematricula', '_blank')">Abrir Sistema de Rematrícula</button>
+</body>
+</html>

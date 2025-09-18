@@ -1,0 +1,343 @@
+/**
+ * Página de validação de CPF para rematrícula
+ * Primeira etapa do fluxo de rematrícula
+ */
+
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, ArrowRight, AlertCircle, CheckCircle, School, XCircle, Info } from 'lucide-react'
+import { cleanCPF, formatCPF } from '../utils/formValidators'
+import { StudentValidationService, type ValidationResult } from '../services/studentValidationService'
+
+export function RematriculaValidation() {
+  const navigate = useNavigate()
+  const [cpf, setCpf] = useState('')
+  const [isValidating, setIsValidating] = useState(false)
+  const [validationResult, setValidationResult] = useState<ValidationResult>({
+    status: 'idle',
+    hasData: false,
+    errors: []
+  })
+
+  // Debug info display
+  const [showDebug] = useState(true)
+
+  const handleCPFChange = (value: string) => {
+    const cleaned = cleanCPF(value)
+    if (cleaned.length <= 11) {
+      setCpf(cleaned)
+      // Reset validation when CPF changes
+      if (validationResult.status !== 'idle') {
+        setValidationResult({
+          status: 'idle',
+          hasData: false,
+          errors: []
+        })
+      }
+    }
+  }
+
+  const handleValidate = async () => {
+    // Nesta página não aplicamos validação de dígito verificador.
+    // Apenas garantimos 11 dígitos para seguir com a consulta.
+    if (cpf.length !== 11) {
+      setValidationResult({ status: 'error', hasData: false, errors: ['Informe 11 dígitos numéricos.'] })
+      return
+    }
+
+    setIsValidating(true)
+    setValidationResult({
+      status: 'loading',
+      hasData: false,
+      errors: []
+    })
+
+    try {
+      // Usar serviço local em vez da Edge Function
+      console.log('[RematriculaValidation] Iniciando validação local do CPF:', cpf)
+      
+      const result = await StudentValidationService.validateStudentType(cpf)
+      
+      console.log('[RematriculaValidation] Resultado da validação:', result)
+      
+      setValidationResult(result)
+
+      // Handle navigation based on student type
+      if (result.studentType === 'already_enrolled') {
+        // Already enrolled - show error
+        // Navigation blocked
+        console.log('[RematriculaValidation] Aluno já matriculado, bloqueando navegação')
+      } else if (result.studentType === 'previous_year') {
+        // Previous year student - go to re-enrollment
+        console.log('[RematriculaValidation] Aluno do ano anterior, redirecionando para rematrícula')
+        setTimeout(() => {
+          navigate(`/rematricula/detalhe/${cpf}`, {
+            state: { studentData: result.studentData }
+          })
+        }, 1500)
+      } else if (result.studentType === 'new') {
+        // New student - go to new enrollment
+        console.log('[RematriculaValidation] Novo aluno, redirecionando para nova matrícula')
+        setTimeout(() => {
+          navigate('/nova-matricula', {
+            state: { cpf }
+          })
+        }, 1500)
+      }
+    } catch (error) {
+      console.error('Erro na validação:', error)
+      setValidationResult({
+        status: 'error',
+        hasData: false,
+        message: 'Erro ao validar CPF',
+        errors: [error.message || 'Erro desconhecido']
+      })
+    } finally {
+      setIsValidating(false)
+    }
+  }
+
+  const getStatusColor = () => {
+    if (validationResult.studentType === 'already_enrolled') return 'destructive'
+    if (validationResult.studentType === 'previous_year') return 'success'
+    if (validationResult.studentType === 'new') return 'secondary'
+    return 'default'
+  }
+
+  const getStatusIcon = () => {
+    if (validationResult.studentType === 'already_enrolled') return XCircle
+    if (validationResult.studentType === 'previous_year') return CheckCircle
+    if (validationResult.studentType === 'new') return Info
+    return AlertCircle
+  }
+
+  const StatusIcon = getStatusIcon()
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 py-8">
+      <div className="container max-w-2xl mx-auto px-4">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <School className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold">Rematrícula - Sistema V2</h1>
+          </div>
+          <p className="text-muted-foreground">
+            Sistema otimizado e independente para rematrícula de alunos
+          </p>
+        </div>
+
+        {/* Main Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Verificação de Elegibilidade</CardTitle>
+            <CardDescription>
+              Digite o CPF do aluno para verificar a situação e iniciar o processo adequado
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            {/* CPF Input */}
+            <div className="space-y-2">
+              <Label htmlFor="cpf">CPF do Aluno</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="cpf"
+                  type="text"
+                  placeholder="000.000.000-00"
+                  value={formatCPF(cpf)}
+                  onChange={(e) => handleCPFChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && cpf.length === 11) {
+                      handleValidate()
+                    }
+                  }}
+                  className="text-lg font-mono"
+                  disabled={isValidating}
+                />
+                <Button
+                  onClick={handleValidate}
+                  disabled={cpf.length !== 11 || isValidating}
+                  size="lg"
+                  className="min-w-[140px]"
+                >
+                  {isValidating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Verificando
+                    </>
+                  ) : (
+                    <>
+                      Verificar Elegibilidade
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Digite apenas os números do CPF
+              </p>
+            </div>
+
+            {/* Validation Result */}
+            {validationResult.status !== 'idle' && (
+              <Alert 
+                variant={getStatusColor() as any}
+                className="animate-in fade-in-50 duration-500"
+              >
+                <StatusIcon className="h-4 w-4" />
+                <AlertTitle className="flex items-center justify-between">
+                  {validationResult.message || 'Processando...'}
+                  {validationResult.studentType && (
+                    <Badge variant={getStatusColor() as any}>
+                      {validationResult.studentType === 'already_enrolled' && 'Já Matriculado'}
+                      {validationResult.studentType === 'previous_year' && 'Aluno Veterano'}
+                      {validationResult.studentType === 'new' && 'Novo Aluno'}
+                    </Badge>
+                  )}
+                </AlertTitle>
+                <AlertDescription className="mt-2">
+                  {/* Already Enrolled */}
+                  {validationResult.studentType === 'already_enrolled' && validationResult.enrollmentInfo && (
+                    <div className="space-y-2 mt-2">
+                      <p className="font-medium text-destructive">
+                        ⚠️ Este aluno já possui matrícula ativa no sistema!
+                      </p>
+                      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 space-y-2">
+                        <div className="space-y-1">
+                          <p className="text-sm">
+                            <span className="font-medium">Nome:</span> {validationResult.enrollmentInfo.name}
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Status da Matrícula:</span>{' '}
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                              {validationResult.enrollmentInfo.status === 'active' ? 'Ativa' : validationResult.enrollmentInfo.status}
+                            </span>
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Ano Letivo:</span> {validationResult.enrollmentInfo.year >= 2026 ? '2026' : validationResult.enrollmentInfo.year}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            <span className="font-medium">ID da Matrícula:</span> {validationResult.enrollmentInfo.id}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mt-3">
+                        <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                          O que você pode fazer:
+                        </p>
+                        <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                          <li>• Acessar <a href="/matriculas-recentes" className="underline font-medium">Matrículas Recentes</a> para consultar detalhes</li>
+                          <li>• Entrar em contato com a secretaria: (88) 3511-0000</li>
+                          <li>• Verificar o status do pagamento no portal do aluno</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Previous Year Student */}
+                  {validationResult.studentType === 'previous_year' && validationResult.studentData && (
+                    <div className="space-y-2 mt-2">
+                      <p className="text-green-600 dark:text-green-400">
+                        Aluno encontrado! Redirecionando para o formulário de rematrícula...
+                      </p>
+                      <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-3 space-y-1">
+                        <p className="text-sm">
+                          <span className="font-medium">Nome:</span> {validationResult.studentData.name}
+                        </p>
+                        <p className="text-sm">
+                          <span className="font-medium">Escola:</span> {validationResult.studentData.escola}
+                        </p>
+                        <p className="text-sm">
+                          <span className="font-medium">Série Anterior:</span> {validationResult.studentData.previousSeries}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New Student */}
+                  {validationResult.studentType === 'new' && (
+                    <div className="space-y-2 mt-2">
+                      <p>
+                        CPF não encontrado no sistema. Redirecionando para nova matrícula...
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Você será direcionado para o formulário completo de matrícula.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Errors */}
+                  {validationResult.errors.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {validationResult.errors.map((error, index) => (
+                        <p key={index} className="text-sm text-destructive">
+                          • {error}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Flow Explanation */}
+            <div className="rounded-lg bg-muted/50 p-4 space-y-3">
+              <h3 className="font-medium text-sm">Como funciona:</h3>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 mt-0.5 text-green-500" />
+                  <div>
+                    <span className="font-medium">Aluno do ano anterior:</span> Formulário simplificado de rematrícula com dados pré-preenchidos
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 mt-0.5 text-blue-500" />
+                  <div>
+                    <span className="font-medium">Novo aluno:</span> Formulário completo de nova matrícula
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <XCircle className="h-4 w-4 mt-0.5 text-red-500" />
+                  <div>
+                    <span className="font-medium">Já matriculado:</span> Consulte a matrícula existente
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Debug Info */}
+            {showDebug && validationResult.status !== 'idle' && (
+              <div className="rounded-lg bg-slate-900 text-slate-100 p-4 font-mono text-xs space-y-1">
+                <p className="text-slate-400">Debug Info:</p>
+                <pre className="overflow-auto">
+{JSON.stringify({
+  status: validationResult.status,
+  studentType: validationResult.studentType,
+  hasData: validationResult.hasData,
+  errors: validationResult.errors
+}, null, 2)}
+                </pre>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Help Text */}
+        <div className="mt-6 text-center text-sm text-muted-foreground">
+          <p>
+            Dúvidas? Entre em contato com a secretaria: (88) 3511-0000
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default RematriculaValidation

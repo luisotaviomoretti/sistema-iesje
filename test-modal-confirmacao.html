@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Modal Confirmação - Aluno Ano Anterior</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 0;
+        }
+        .cpf-list {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .cpf-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-left: 3px solid #28a745;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .cpf-item:hover {
+            background: #e7f5ff;
+            transform: translateX(5px);
+        }
+        .instructions {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #d63384;
+        }
+        .test-steps {
+            counter-reset: step-counter;
+            list-style: none;
+            padding-left: 0;
+        }
+        .test-steps li {
+            counter-increment: step-counter;
+            margin-bottom: 15px;
+            padding-left: 40px;
+            position: relative;
+        }
+        .test-steps li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #007bff;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .checklist {
+            list-style: none;
+            padding-left: 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        .checklist li::before {
+            content: "□";
+            position: absolute;
+            left: 0;
+            font-size: 20px;
+            color: #6c757d;
+        }
+        .checklist li.checked::before {
+            content: "✓";
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste do Modal de Confirmação - Aluno Ano Anterior</h1>
+    
+    <div class="instructions">
+        <strong>⚠️ IMPORTANTE:</strong> Este teste verifica se o modal de confirmação aparece corretamente quando um CPF de aluno do ano anterior é inserido no sistema.
+    </div>
+
+    <div class="test-card">
+        <h2>📋 Pré-requisitos</h2>
+        <ul class="checklist">
+            <li>Sistema rodando em <code>http://localhost:8082</code></li>
+            <li>Console do navegador aberto (F12)</li>
+            <li>Modo desenvolvimento ativo (<code>DEV=true</code>)</li>
+            <li>Banco de dados Supabase conectado</li>
+        </ul>
+    </div>
+
+    <div class="test-card">
+        <h2>🎯 Objetivo do Teste</h2>
+        <p>Verificar se ao inserir um CPF de aluno matriculado no ano anterior:</p>
+        <ol>
+            <li>O sistema detecta corretamente o status <code>previous_year</code></li>
+            <li>O modal de confirmação é exibido</li>
+            <li>Os dados do aluno (Nome, Série, Responsável) são carregados</li>
+            <li>Os botões de confirmação/cancelamento funcionam</li>
+        </ol>
+    </div>
+
+    <div class="test-card">
+        <h2>🔍 CPFs de Teste (Alunos Ano Anterior)</h2>
+        <div class="cpf-list">
+            <p><strong>Use um dos CPFs abaixo que estejam na tabela <code>previous_year_students</code>:</strong></p>
+            <div class="cpf-item" onclick="copyToClipboard('123.456.789-00')">
+                <strong>123.456.789-00</strong> - João Silva (exemplo)
+            </div>
+            <div class="cpf-item" onclick="copyToClipboard('987.654.321-00')">
+                <strong>987.654.321-00</strong> - Maria Santos (exemplo)
+            </div>
+            <div class="status info">
+                💡 <strong>Dica:</strong> Clique no CPF para copiar
+            </div>
+        </div>
+    </div>
+
+    <div class="test-card">
+        <h2>📝 Passos do Teste</h2>
+        <ol class="test-steps">
+            <li>
+                <strong>Abrir a página inicial</strong><br>
+                Navegue para <code>http://localhost:8082/</code>
+            </li>
+            <li>
+                <strong>Abrir o Console do Navegador</strong><br>
+                Pressione F12 e vá para a aba "Console"
+            </li>
+            <li>
+                <strong>Inserir CPF de teste</strong><br>
+                Digite um dos CPFs de aluno do ano anterior na caixa de busca
+            </li>
+            <li>
+                <strong>Clicar em "Validar CPF"</strong><br>
+                Observe os logs no console
+            </li>
+            <li>
+                <strong>Verificar Modal</strong><br>
+                O modal deve aparecer com:
+                <ul style="margin-top: 10px;">
+                    <li>✓ Nome do aluno</li>
+                    <li>✓ Série do ano anterior</li>
+                    <li>✓ Nome do responsável primário</li>
+                    <li>✓ Botão "Confirmar e Continuar"</li>
+                    <li>✓ Botão "Cancelar"</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="test-card">
+        <h2>🔍 Logs Esperados no Console</h2>
+        <div style="background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 14px;">
+            <div style="color: #9cdcfe;">[Identificacao] ENABLE_CONFIRMATION_MODAL: <span style="color: #569cd6;">true</span></div>
+            <div style="color: #9cdcfe;">[Identificacao] Validar CPF</div>
+            <div style="color: #9cdcfe;">[Identificacao] validateCPF result: {ok: <span style="color: #569cd6;">true</span>, status: <span style="color: #ce9178;">"previous_year"</span>}</div>
+            <div style="color: #9cdcfe;">[Identificacao] Detectado previous_year, ENABLE_CONFIRMATION_MODAL: <span style="color: #569cd6;">true</span></div>
+            <div style="color: #9cdcfe;">[Identificacao] Iniciando fetchStudentData...</div>
+            <div style="color: #9cdcfe;">[useStudentConfirmation] Iniciando busca para CPF: 12345678900</div>
+            <div style="color: #9cdcfe;">[useStudentConfirmation] Dados carregados com sucesso</div>
+            <div style="color: #9cdcfe;">[Identificacao] fetchStudentData concluído</div>
+            <div style="color: #9cdcfe;">[Identificacao] Abrindo modal...</div>
+            <div style="color: #9cdcfe;">[Identificacao] status: previous_year → modal aberto</div>
+        </div>
+    </div>
+
+    <div class="test-card">
+        <h2>❌ Solução de Problemas</h2>
+        <div style="margin-top: 15px;">
+            <h3>Se o modal não aparecer:</h3>
+            <ol>
+                <li>Verifique se <code>ENABLE_CONFIRMATION_MODAL = true</code> em <code>Identificacao.tsx</code></li>
+                <li>Confirme que o CPF existe na tabela <code>previous_year_students</code></li>
+                <li>Verifique erros no console do navegador</li>
+                <li>Confirme que o serviço <code>RematriculaDetailsService</code> está funcionando</li>
+                <li>Verifique se o modal está sendo renderizado no DOM (inspecione elementos)</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-card">
+        <h2>✅ Critérios de Sucesso</h2>
+        <ul class="checklist">
+            <li>Modal aparece ao validar CPF de aluno do ano anterior</li>
+            <li>Dados do aluno são exibidos corretamente</li>
+            <li>Botão "Confirmar" redireciona para <code>/rematricula</code></li>
+            <li>Botão "Cancelar" fecha o modal</li>
+            <li>Fallback funciona em caso de erro (redireciona direto)</li>
+        </ul>
+    </div>
+
+    <script>
+        function copyToClipboard(text) {
+            const cleanText = text.replace(/[.-]/g, '');
+            navigator.clipboard.writeText(cleanText).then(() => {
+                alert('CPF copiado: ' + cleanText);
+            });
+        }
+
+        // Auto-check prerequisites
+        document.addEventListener('DOMContentLoaded', () => {
+            const items = document.querySelectorAll('.checklist li');
+            items.forEach((item, index) => {
+                setTimeout(() => {
+                    item.classList.add('checked');
+                }, (index + 1) * 300);
+            });
+        });
+    </script>
+</body>
+</html>
