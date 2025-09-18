@@ -7,6 +7,7 @@ import type { PricingCalculation } from '../../types/business'
 export interface ProposalData {
   formData: EnrollmentFormData
   pricing: PricingCalculation | null
+
   seriesInfo?: {
     id: string
     nome: string
@@ -31,6 +32,8 @@ export interface ProposalData {
     level: string
     description: string
   }
+  // F4 — Observações da Forma de Pagamento (opcional)
+  paymentNotes?: string
 }
 
 export class ProposalGeneratorCompact {
@@ -160,7 +163,28 @@ export class ProposalGeneratorCompact {
       discountsInfo: Array.isArray(data.discountsInfo) 
         ? data.discountsInfo.map(d => sanitizeObject(d))
         : [],
-      approvalInfo: sanitizeObject(data.approvalInfo)
+      approvalInfo: sanitizeObject(data.approvalInfo),
+      // Propagar notes sanitizadas (preserva quebras de linha e limita tamanho para caber no layout compacto)
+      paymentNotes: (() => {
+        const raw = data.paymentNotes || ''
+        if (!raw) return ''
+        try {
+          let s = String(raw)
+            .replace(/\r\n?/g, '\n')    // CRLF/CR -> LF
+            .trim()
+            .replace(/\n{3,}/g, '\n\n') // colapsa 3+ LFs
+          // Remover caracteres não imprimíveis mantendo básico latino
+          s = s
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^\x20-\x7E\u00A0-\u00FF\u0100-\u017F\n]/g, '')
+          // Limitar para não estourar 1 página (valor conservador)
+          if (s.length > 600) s = s.slice(0, 600)
+          return s
+        } catch {
+          return ''
+        }
+      })()
     }
 
     // Adicionar cálculo de desconto percentual se não existir

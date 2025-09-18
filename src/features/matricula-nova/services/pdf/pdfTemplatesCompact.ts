@@ -51,6 +51,8 @@ export interface ProposalDataCompact {
   trackInfo?: any
   discountsInfo?: any[]
   approvalInfo?: any
+  // F4 — Observações (opcional)
+  paymentNotes?: string
 }
 
 export class PDFTemplatesCompact {
@@ -85,9 +87,14 @@ export class PDFTemplatesCompact {
     this.drawSeparatorLine()
     
     this.drawCompactSection('D', 'DESCONTOS APLICADOS', () => this.drawDiscountsData(data))
-    this.drawSeparatorLine()
     
-    this.drawCompactSection('E', 'RESUMO FINANCEIRO', () => this.drawFinancialSummaryNew(data))
+    // Se houver observações, renderizar antes do resumo financeiro para garantir espaço
+    if (data?.paymentNotes && String(data.paymentNotes).trim().length > 0) {
+      this.drawSeparatorLine()
+      this.drawCompactSection('E', 'OBSERVAÇÕES SOBRE A FORMA DE PAGAMENTO', () => this.drawPaymentNotes(data))
+    }
+    this.drawSeparatorLine()
+    this.drawCompactSection('F', 'RESUMO FINANCEIRO', () => this.drawFinancialSummaryNew(data))
     
     // Footer compacto
     this.drawCompactFooter()
@@ -413,6 +420,37 @@ export class PDFTemplatesCompact {
     this.doc.text(fullText, centerX, centerY)
     
     this.currentY = finalBoxY + finalBoxHeight + 5
+  }
+
+  /**
+   * F4 — Observações da forma de pagamento (compacto e multi-linha)
+   * Renderiza apenas texto puro, com quebras respeitadas e limite de linhas para manter 1 página
+   */
+  private drawPaymentNotes(data: ProposalDataCompact): void {
+    const raw = (data?.paymentNotes || '').trim()
+    if (!raw) return
+
+    this.doc.setFont('helvetica', 'normal')
+    this.doc.setFontSize(TYPOGRAPHY_COMPACT.body.size)
+    this.doc.setTextColor(COLORS_COMPACT.text)
+
+    const maxWidth = LAYOUT_COMPACT.contentWidth
+    const lines = this.doc.splitTextToSize(raw, maxWidth)
+
+    // Calcular espaço disponível antes do rodapé fixo
+    const footerY = 297 - 25 // mesmo valor de drawCompactFooter
+    const safetySpacing = LAYOUT_COMPACT.sectionSpacing // respeitar espaçamento pós-seção
+    const available = Math.max(0, footerY - this.currentY - safetySpacing)
+    const maxLinesBySpace = Math.floor(available / LAYOUT_COMPACT.lineHeight)
+    const maxAllowed = Math.max(0, Math.min(8, maxLinesBySpace)) // também respeitar limite conservador de 8 linhas
+    const limited = Array.isArray(lines) ? lines.slice(0, maxAllowed) : []
+
+    let y = this.currentY
+    for (const line of limited) {
+      this.doc.text(line, LAYOUT_COMPACT.margins.left, y)
+      y += LAYOUT_COMPACT.lineHeight
+    }
+    this.currentY = y
   }
 
   /**

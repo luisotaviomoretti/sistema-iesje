@@ -132,13 +132,35 @@ export class EnrollmentApiService {
     pricing: PricingCalculation,
     seriesInfo: any,
     trackInfo: any,
-    currentUser?: CurrentUserInfo
+    currentUser?: CurrentUserInfo,
+    options?: { paymentNotesEnabled?: boolean; paymentNotes?: string }
   ): Promise<string> {
     // Gera um client_tx_id idempotente
     const clientTxId = this.generateClientTxId()
 
     // Monta payload conforme contrato da RPC
-    const enrollmentPayload = this.mapFormToDatabaseFull(formData, pricing, seriesInfo, trackInfo, currentUser)
+    const enrollmentPayload = this.mapFormToDatabaseFull(formData, pricing, seriesInfo, trackInfo, currentUser) as any
+
+    // Opcional: incluir payment_notes no payload quando feature flag estiver ativa e houver conteúdo.
+    // Sanitização leve no cliente (servidor é a fonte da verdade):
+    // - Normaliza CRLF/CR para LF
+    // - Trim
+    // - Colapsa 3+ quebras em duplas
+    // - Limita a 1000 caracteres
+    if (options?.paymentNotesEnabled && options.paymentNotes) {
+      try {
+        let raw = String(options.paymentNotes || '')
+        if (raw && raw.length > 0) {
+          let s = raw.replace(/\r\n?/g, '\n')
+          s = s.trim()
+          s = s.replace(/\n{3,}/g, '\n\n')
+          if (s.length > 1000) s = s.slice(0, 1000)
+          if (s.length > 0) {
+            enrollmentPayload.payment_notes = s
+          }
+        }
+      } catch {}
+    }
 
     // Mapear descontos selecionados com detalhes do cálculo
     const discountsPayload = (formData.selectedDiscounts || []).map((selected) => {
@@ -147,7 +169,7 @@ export class EnrollmentApiService {
         discount_id: selected.id,
         discount_code: pricingDiscount?.code || '',
         discount_name: pricingDiscount?.name || '',
-        discount_category: pricingDiscount?.category || 'unknown',
+        discount_category: (pricingDiscount as any)?.category || 'unknown',
         percentage_applied: selected.percentual,
         value_applied: pricingDiscount?.value || 0,
       }

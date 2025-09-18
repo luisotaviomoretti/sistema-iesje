@@ -26,6 +26,10 @@ import {
   primeRematriculaEditConfigCache,
   invalidateMacomConfigCache,
   primeMacomConfigCache,
+  invalidateRematriculaPaymentNotesConfigCache,
+  primeRematriculaPaymentNotesConfigCache,
+  invalidateNovomatriculaPaymentNotesConfigCache,
+  primeNovomatriculaPaymentNotesConfigCache,
 } from '@/lib/config/config.service'
 
 const KEY_ENABLED = 'rematricula.suggested_discount_cap.enabled'
@@ -62,6 +66,12 @@ const MACOM_KEY_HIDE_SUGGESTED = 'rematricula.macom.hide_suggested'
 const INAD_KEY_ENABLED = 'rematricula.inadimplencia.enabled'
 const INAD_KEY_REQ_GUARDIAN = 'rematricula.inadimplencia.match.require_guardian'
 const INAD_KEY_REQ_SCHOOL = 'rematricula.inadimplencia.match.require_same_school'
+
+// Chave Rematrícula — Observações da Forma de Pagamento (flag FE)
+const PAY_NOTES_KEY_ENABLED = 'rematricula.payment_notes.enabled'
+
+// Chave Aluno Novo — Observações da Forma de Pagamento (flag FE)
+const NOVO_PAY_NOTES_KEY_ENABLED = 'novomatricula.payment_notes.enabled'
 
 export default function SystemConfigurations() {
   const { data: adminSession } = useAdminAuth()
@@ -123,6 +133,12 @@ export default function SystemConfigurations() {
   const { data: inadReqGuardianPublic, isLoading: loadingInadReqG } = usePublicSystemConfig(INAD_KEY_REQ_GUARDIAN)
   const { data: inadReqSchoolPublic, isLoading: loadingInadReqS } = usePublicSystemConfig(INAD_KEY_REQ_SCHOOL)
 
+  // Rematrícula — Observações da Forma de Pagamento (leitura pública)
+  const { data: payNotesEnabledPublic, isLoading: loadingPayNotesEnabled } = usePublicSystemConfig(PAY_NOTES_KEY_ENABLED)
+
+  // Aluno Novo — Observações da Forma de Pagamento (leitura pública)
+  const { data: novoPayNotesEnabledPublic, isLoading: loadingNovoPayNotesEnabled } = usePublicSystemConfig(NOVO_PAY_NOTES_KEY_ENABLED)
+
   const [editEnabled, setEditEnabled] = useState<boolean>(true)
   const [editStudentEnabled, setEditStudentEnabled] = useState<boolean>(true)
   const [editGuardiansEnabled, setEditGuardiansEnabled] = useState<boolean>(true)
@@ -139,6 +155,8 @@ export default function SystemConfigurations() {
   const [inadEnabled, setInadEnabled] = useState<boolean>(false)
   const [inadReqGuardian, setInadReqGuardian] = useState<boolean>(false)
   const [inadReqSchool, setInadReqSchool] = useState<boolean>(false)
+  const [payNotesEnabled, setPayNotesEnabled] = useState<boolean>(false)
+  const [novoPayNotesEnabled, setNovoPayNotesEnabled] = useState<boolean>(false)
 
   useEffect(() => {
     if (enabledPublic != null) {
@@ -146,6 +164,86 @@ export default function SystemConfigurations() {
       setEnabled(v === 'true' || v === '1' || v === 'yes' || v === 'on')
     }
   }, [enabledPublic])
+
+  // Salvar Aluno Novo — Observações da Forma de Pagamento (flag)
+  const handleSaveNovoPaymentNotes = async () => {
+    try {
+      // Helper: criação idempotente com fallback de categorias
+      const createWithAdminFallback = async (params: { chave: string; valor: string; descricao: string }) => {
+        const categoriesFallback = ['admin', 'sistema', 'matriculas', 'config', 'geral']
+        let lastErr: any = null
+        for (const cat of categoriesFallback) {
+          try {
+            await createConfig({ chave: params.chave, valor: params.valor, categoria: cat, descricao: params.descricao, updated_by: adminEmail })
+            return
+          } catch (e: any) {
+            lastErr = e
+            const msg = String(e?.message || '')
+            if (!msg.includes('system_configs_categoria_valid')) throw e
+          }
+        }
+        throw lastErr || new Error('Falha ao criar configuração (categoria inválida)')
+      }
+
+      const enabledVal = novoPayNotesEnabled ? 'true' : 'false'
+      const existsEnabled = novoPayNotesEnabledPublic != null
+
+      if (existsEnabled) {
+        await updateConfigValue({ chave: NOVO_PAY_NOTES_KEY_ENABLED, valor: enabledVal, updated_by: adminEmail })
+      } else {
+        await createWithAdminFallback({ chave: NOVO_PAY_NOTES_KEY_ENABLED, valor: enabledVal, descricao: 'Habilita o campo de Observações sobre a Forma de Pagamento na Nova Matrícula (UI/PDF). Dark Launch: sem efeito até ligado.' })
+      }
+
+      // Cache local — refletir imediatamente
+      invalidateNovomatriculaPaymentNotesConfigCache()
+      primeNovomatriculaPaymentNotesConfigCache({ enabled: novoPayNotesEnabled })
+
+      toast.success('Flag de Observações de Pagamento (Aluno Novo) salva com sucesso!')
+    } catch (err: any) {
+      console.error('[Admin Configurações] Falha ao salvar Observações de Pagamento (Aluno Novo):', err)
+      toast.error(err?.message || 'Erro ao salvar flag de Observações de Pagamento (Aluno Novo)')
+    }
+  }
+
+  // Salvar Rematrícula — Observações da Forma de Pagamento (flag)
+  const handleSavePaymentNotes = async () => {
+    try {
+      // Helper: criação idempotente com fallback de categorias
+      const createWithAdminFallback = async (params: { chave: string; valor: string; descricao: string }) => {
+        const categoriesFallback = ['admin', 'sistema', 'matriculas', 'config', 'geral']
+        let lastErr: any = null
+        for (const cat of categoriesFallback) {
+          try {
+            await createConfig({ chave: params.chave, valor: params.valor, categoria: cat, descricao: params.descricao, updated_by: adminEmail })
+            return
+          } catch (e: any) {
+            lastErr = e
+            const msg = String(e?.message || '')
+            if (!msg.includes('system_configs_categoria_valid')) throw e
+          }
+        }
+        throw lastErr || new Error('Falha ao criar configuração (categoria inválida)')
+      }
+
+      const enabledVal = payNotesEnabled ? 'true' : 'false'
+      const existsEnabled = payNotesEnabledPublic != null
+
+      if (existsEnabled) {
+        await updateConfigValue({ chave: PAY_NOTES_KEY_ENABLED, valor: enabledVal, updated_by: adminEmail })
+      } else {
+        await createWithAdminFallback({ chave: PAY_NOTES_KEY_ENABLED, valor: enabledVal, descricao: 'Habilita o campo de Observações sobre a Forma de Pagamento na Rematrícula (UI/PDF). Dark Launch: sem efeito até ligado.' })
+      }
+
+      // Cache local — refletir imediatamente
+      invalidateRematriculaPaymentNotesConfigCache()
+      primeRematriculaPaymentNotesConfigCache({ enabled: payNotesEnabled })
+
+      toast.success('Flag de Observações de Pagamento (Rematrícula) salva com sucesso!')
+    } catch (err: any) {
+      console.error('[Admin Configurações] Falha ao salvar Observações de Pagamento (Rematrícula):', err)
+      toast.error(err?.message || 'Erro ao salvar flag de Observações de Pagamento (Rematrícula)')
+    }
+  }
 
   // Salvar Rematrícula — Inadimplência (enabled + regras de match)
   const handleSaveInadimplencia = async () => {
@@ -400,6 +498,22 @@ export default function SystemConfigurations() {
     }
   }, [inadReqSchoolPublic])
 
+  // Rematrícula — Observações da Forma de Pagamento (hidratação)
+  useEffect(() => {
+    if (payNotesEnabledPublic != null) {
+      const v = String(payNotesEnabledPublic).trim().toLowerCase()
+      setPayNotesEnabled(v === 'true' || v === '1' || v === 'yes' || v === 'on')
+    }
+  }, [payNotesEnabledPublic])
+
+  // Aluno Novo — Observações da Forma de Pagamento (hidratação)
+  useEffect(() => {
+    if (novoPayNotesEnabledPublic != null) {
+      const v = String(novoPayNotesEnabledPublic).trim().toLowerCase()
+      setNovoPayNotesEnabled(v === 'true' || v === '1' || v === 'yes' || v === 'on')
+    }
+  }, [novoPayNotesEnabledPublic])
+
   // Salvar configurações Rematrícula — Home & Busca
   const handleSaveHome = async () => {
     try {
@@ -586,6 +700,7 @@ export default function SystemConfigurations() {
     || loadingEditEnabled || loadingEditStudent || loadingEditGuardians || loadingEditAddress || loadingEditTelemetry
     || loadingMacomEnabled || loadingMacomCategories || loadingMacomOneOnly || loadingMacomHideSuggested
     || loadingInadEnabled || loadingInadReqG || loadingInadReqS
+    || loadingPayNotesEnabled || loadingNovoPayNotesEnabled
   const isSaving = saving || creating
 
   const parsedPercent = useMemo(() => {
@@ -865,6 +980,78 @@ export default function SystemConfigurations() {
               <Alert className="bg-muted/40">
                 <AlertDescription className="text-xs">
                   Efeito no app é imediato (cache local é invalidado). A política se aplica apenas ao Desconto Sugerido e não interfere em descontos adicionados manualmente pelo operador.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rematrícula — Observações sobre a Forma de Pagamento</CardTitle>
+          <CardDescription>
+            Controla a exposição do campo de observações (texto livre) na etapa final de Rematrícula e sua inclusão no PDF. Dark Launch: nada muda até ligar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Carregando configurações...</div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="font-medium">Ativar Observações de Pagamento</Label>
+                  <p className="text-xs text-muted-foreground">Exibe um campo de texto livre no final da Rematrícula e o inclui na proposta (PDF) quando preenchido.</p>
+                </div>
+                <Switch checked={payNotesEnabled} onCheckedChange={setPayNotesEnabled} />
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={handleSavePaymentNotes} disabled={isSaving}>
+                  {isSaving ? 'Salvando...' : 'Salvar alterações'}
+                </Button>
+              </div>
+
+              <Alert className="bg-muted/40">
+                <AlertDescription className="text-xs">
+                  Dark Launch seguro: com o toggle desligado, nada muda no app. O cache local é invalidado após salvar para refletir imediatamente nos consumidores.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Aluno Novo — Observações sobre a Forma de Pagamento</CardTitle>
+          <CardDescription>
+            Controla a exposição do campo de observações (texto livre) na etapa final da Nova Matrícula e sua inclusão no PDF. Dark Launch: nada muda até ligar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Carregando configurações...</div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="font-medium">Ativar Observações de Pagamento</Label>
+                  <p className="text-xs text-muted-foreground">Exibe um campo de texto livre no final da Nova Matrícula e o inclui na proposta (PDF) quando preenchido.</p>
+                </div>
+                <Switch checked={novoPayNotesEnabled} onCheckedChange={setNovoPayNotesEnabled} />
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={handleSaveNovoPaymentNotes} disabled={isSaving}>
+                  {isSaving ? 'Salvando...' : 'Salvar alterações'}
+                </Button>
+              </div>
+
+              <Alert className="bg-muted/40">
+                <AlertDescription className="text-xs">
+                  Dark Launch seguro: com o toggle desligado, nada muda no app. O cache local é invalidado após salvar para refletir imediatamente nos consumidores.
                 </AlertDescription>
               </Alert>
             </>

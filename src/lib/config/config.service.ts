@@ -34,6 +34,11 @@ export interface RematriculaEditConfig {
   telemetryEnabled: boolean
 }
 
+// Rematrícula — Observações da Forma de Pagamento (flag simples)
+export interface PaymentNotesConfig {
+  enabled: boolean
+}
+
 // Rematrícula — MACOM (fluxo especial de descontos)
 export interface MacomDiscountConfig {
   enabled: boolean
@@ -63,6 +68,16 @@ const REMATRICULA_EDIT_KEYS = {
   telemetryEnabled: 'rematricula.edit.telemetry.enabled',
 } as const
 
+// Chaves Rematrícula — Observações da Forma de Pagamento
+const PAYMENT_NOTES_KEYS = {
+  enabled: 'rematricula.payment_notes.enabled',
+} as const
+
+// Chaves Aluno Novo — Observações da Forma de Pagamento
+const NOVO_PAYMENT_NOTES_KEYS = {
+  enabled: 'novomatricula.payment_notes.enabled',
+} as const
+
 // Chaves Rematrícula — MACOM
 const MACOM_KEYS = {
   enabled: 'rematricula.macom.enabled',
@@ -79,6 +94,8 @@ const LS_KEYS = {
   rematriculaEdit: 'cfg.rematricula_edit.v1',
   rematriculaMacom: 'cfg.rematricula_macom.v1',
   rematriculaInad: 'cfg.rematricula_inad.v1',
+  rematriculaPaymentNotes: 'cfg.rematricula_payment_notes.v1',
+  novomatriculaPaymentNotes: 'cfg.novomatricula_payment_notes.v1',
 } as const
 
 const DEFAULTS: SuggestedDiscountCapConfig = { enabled: false, percent: 20 }
@@ -97,6 +114,7 @@ const MACOM_DEFAULTS: MacomDiscountConfig = {
   oneDiscountOnly: true,
   hideSuggested: true,
 }
+const PAYMENT_NOTES_DEFAULTS: PaymentNotesConfig = { enabled: false }
 const TTL_MS = 5 * 60 * 1000 // 5 minutos
 
 // Cache em memória
@@ -105,6 +123,8 @@ let memCachePav: { value: CashDiscountConfig; expiresAt: number } | null = null
 let memCacheEdit: { value: RematriculaEditConfig; expiresAt: number } | null = null
 let memCacheMacom: { value: MacomDiscountConfig; expiresAt: number } | null = null
 let memCacheInad: { value: InadimplenciaConfig; expiresAt: number } | null = null
+let memCachePaymentNotes: { value: PaymentNotesConfig; expiresAt: number } | null = null
+let memCacheNovoPaymentNotes: { value: PaymentNotesConfig; expiresAt: number } | null = null
 
 function now() {
   return Date.now()
@@ -909,4 +929,216 @@ export function primeInadimplenciaConfigCache(value: Partial<InadimplenciaConfig
   const expiresAt = now() + ttlMs
   memCacheInad = { value: v, expiresAt }
   writeLSInad(v, ttlMs)
+}
+
+// =============================
+// Rematrícula — Observações da Forma de Pagamento (config)
+// =============================
+
+function readLSPaymentNotes(): { value: PaymentNotesConfig; expiresAt: number } | null {
+  try {
+    if (!hasWindow()) return null
+    const raw = localStorage.getItem(LS_KEYS.rematriculaPaymentNotes)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    if (typeof parsed.expiresAt !== 'number' || !parsed.value) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeLSPaymentNotes(value: PaymentNotesConfig, ttlMs = TTL_MS) {
+  try {
+    if (!hasWindow()) return
+    const payload = JSON.stringify({ value, expiresAt: now() + ttlMs })
+    localStorage.setItem(LS_KEYS.rematriculaPaymentNotes, payload)
+  } catch {
+    // noop
+  }
+}
+
+function removeLSPaymentNotes() {
+  try {
+    if (!hasWindow()) return
+    localStorage.removeItem(LS_KEYS.rematriculaPaymentNotes)
+  } catch {
+    // noop
+  }
+}
+
+async function fetchRematriculaPaymentNotesFromServer(): Promise<PaymentNotesConfig | null> {
+  try {
+    const enabledRes = await supabase.rpc('get_system_config', { config_key: PAYMENT_NOTES_KEYS.enabled })
+    if (enabledRes.error) {
+      console.warn('[config.service] get_system_config error (payment_notes.enabled):', enabledRes.error)
+    }
+    const enabled = parseBooleanLike(enabledRes.data ?? PAYMENT_NOTES_DEFAULTS.enabled)
+    return { enabled }
+  } catch (err) {
+    console.error('[config.service] fetchRematriculaPaymentNotesFromServer failed:', err)
+    return null
+  }
+}
+
+export async function getRematriculaPaymentNotesConfig(options?: { forceRefresh?: boolean }): Promise<PaymentNotesConfig> {
+  const force = !!options?.forceRefresh
+
+  // 1) memória
+  if (!force && memCachePaymentNotes && !isExpired(memCachePaymentNotes.expiresAt)) {
+    return memCachePaymentNotes.value
+  }
+
+  // 2) localStorage
+  if (!force) {
+    const ls = readLSPaymentNotes()
+    if (ls && !isExpired(ls.expiresAt)) {
+      memCachePaymentNotes = { value: ls.value, expiresAt: ls.expiresAt }
+      return ls.value
+    }
+  }
+
+  // 3) servidor
+  const remote = await fetchRematriculaPaymentNotesFromServer()
+  if (remote) {
+    const expiresAt = now() + TTL_MS
+    memCachePaymentNotes = { value: remote, expiresAt }
+    writeLSPaymentNotes(remote, TTL_MS)
+    return remote
+  }
+
+  // 4) fallback suave a LS expirado
+  const lsExpired = readLSPaymentNotes()
+  if (lsExpired && lsExpired.value) {
+    const fallback = lsExpired.value
+    const expiresAt = now() + 30 * 1000
+    memCachePaymentNotes = { value: fallback, expiresAt }
+    return fallback
+  }
+
+  // 5) defaults
+  const expiresAt = now() + 30 * 1000
+  memCachePaymentNotes = { value: PAYMENT_NOTES_DEFAULTS, expiresAt }
+  return PAYMENT_NOTES_DEFAULTS
+}
+
+export function invalidateRematriculaPaymentNotesConfigCache() {
+  memCachePaymentNotes = null
+  removeLSPaymentNotes()
+}
+
+export function primeRematriculaPaymentNotesConfigCache(value: Partial<PaymentNotesConfig>, ttlMs = TTL_MS) {
+  const v: PaymentNotesConfig = {
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : PAYMENT_NOTES_DEFAULTS.enabled,
+  }
+  const expiresAt = now() + ttlMs
+  memCachePaymentNotes = { value: v, expiresAt }
+  writeLSPaymentNotes(v, ttlMs)
+}
+
+// =============================
+// Aluno Novo — Observações da Forma de Pagamento (config)
+// =============================
+
+function readLSNovoPaymentNotes(): { value: PaymentNotesConfig; expiresAt: number } | null {
+  try {
+    if (!hasWindow()) return null
+    const raw = localStorage.getItem(LS_KEYS.novomatriculaPaymentNotes)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    if (typeof parsed.expiresAt !== 'number' || !parsed.value) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeLSNovoPaymentNotes(value: PaymentNotesConfig, ttlMs = TTL_MS) {
+  try {
+    if (!hasWindow()) return
+    const payload = JSON.stringify({ value, expiresAt: now() + ttlMs })
+    localStorage.setItem(LS_KEYS.novomatriculaPaymentNotes, payload)
+  } catch {
+    // noop
+  }
+}
+
+function removeLSNovoPaymentNotes() {
+  try {
+    if (!hasWindow()) return
+    localStorage.removeItem(LS_KEYS.novomatriculaPaymentNotes)
+  } catch {
+    // noop
+  }
+}
+
+async function fetchNovomatriculaPaymentNotesFromServer(): Promise<PaymentNotesConfig | null> {
+  try {
+    const enabledRes = await supabase.rpc('get_system_config', { config_key: NOVO_PAYMENT_NOTES_KEYS.enabled })
+    if (enabledRes.error) {
+      console.warn('[config.service] get_system_config error (novo.payment_notes.enabled):', enabledRes.error)
+    }
+    const enabled = parseBooleanLike(enabledRes.data ?? PAYMENT_NOTES_DEFAULTS.enabled)
+    return { enabled }
+  } catch (err) {
+    console.error('[config.service] fetchNovomatriculaPaymentNotesFromServer failed:', err)
+    return null
+  }
+}
+
+export async function getNovomatriculaPaymentNotesConfig(options?: { forceRefresh?: boolean }): Promise<PaymentNotesConfig> {
+  const force = !!options?.forceRefresh
+
+  // 1) memória
+  if (!force && memCacheNovoPaymentNotes && !isExpired(memCacheNovoPaymentNotes.expiresAt)) {
+    return memCacheNovoPaymentNotes.value
+  }
+
+  // 2) localStorage
+  if (!force) {
+    const ls = readLSNovoPaymentNotes()
+    if (ls && !isExpired(ls.expiresAt)) {
+      memCacheNovoPaymentNotes = { value: ls.value, expiresAt: ls.expiresAt }
+      return ls.value
+    }
+  }
+
+  // 3) servidor
+  const remote = await fetchNovomatriculaPaymentNotesFromServer()
+  if (remote) {
+    const expiresAt = now() + TTL_MS
+    memCacheNovoPaymentNotes = { value: remote, expiresAt }
+    writeLSNovoPaymentNotes(remote, TTL_MS)
+    return remote
+  }
+
+  // 4) fallback suave a LS expirado
+  const lsExpired = readLSNovoPaymentNotes()
+  if (lsExpired && lsExpired.value) {
+    const fallback = lsExpired.value
+    const expiresAt = now() + 30 * 1000
+    memCacheNovoPaymentNotes = { value: fallback, expiresAt }
+    return fallback
+  }
+
+  // 5) defaults
+  const expiresAt = now() + 30 * 1000
+  memCacheNovoPaymentNotes = { value: PAYMENT_NOTES_DEFAULTS, expiresAt }
+  return PAYMENT_NOTES_DEFAULTS
+}
+
+export function invalidateNovomatriculaPaymentNotesConfigCache() {
+  memCacheNovoPaymentNotes = null
+  removeLSNovoPaymentNotes()
+}
+
+export function primeNovomatriculaPaymentNotesConfigCache(value: Partial<PaymentNotesConfig>, ttlMs = TTL_MS) {
+  const v: PaymentNotesConfig = {
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : PAYMENT_NOTES_DEFAULTS.enabled,
+  }
+  const expiresAt = now() + ttlMs
+  memCacheNovoPaymentNotes = { value: v, expiresAt }
+  writeLSNovoPaymentNotes(v, ttlMs)
 }

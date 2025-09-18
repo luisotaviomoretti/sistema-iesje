@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { 
   CheckCircle, 
   FileText, 
@@ -39,6 +41,9 @@ import type { DocumentRequirement } from '../../hooks/useDiscountDocuments'
 import { toast } from 'sonner'
 import { EnrollmentApiService } from '../../services/api/enrollment'
 import { useCurrentUser } from '@/features/enrollment/hooks/useCurrentUser'
+import { useQuery } from '@tanstack/react-query'
+import { getNovomatriculaPaymentNotesConfig } from '@/lib/config/config.service'
+import { supabase } from '@/lib/supabase'
 
 export default function SummaryStep(props: StepProps) {
   const navigate = useNavigate()
@@ -57,6 +62,18 @@ export default function SummaryStep(props: StepProps) {
   })  
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | undefined>()
+
+  // Flag e estado local para Observações de Pagamento (Aluno Novo)
+  const { data: novoPayNotesCfg } = useQuery({
+    queryKey: ['novomatricula-payment-notes-config'],
+    // Forçar refresh para evitar cache de LS/memória com valor antigo (após migração 046)
+    queryFn: async () => getNovomatriculaPaymentNotesConfig({ forceRefresh: true }),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
+  })
+  const paymentNotesEnabled = Boolean(novoPayNotesCfg?.enabled)
+  const [paymentNotes, setPaymentNotes] = useState<string>('')
 
   // Get form data using watch with memoization
   const formData = useMemo(() => props.form.watch(), [props.form])
@@ -201,13 +218,16 @@ export default function SummaryStep(props: StepProps) {
       setIsGeneratingPdf(true)
       
       // Prepare proposal data
+      console.debug('[SummaryStep] PDF generation (manual): notesEnabled=', paymentNotesEnabled, 'notesLen=', (paymentNotes || '').length)
       const proposalData: ProposalData = {
         formData,
         pricing: props.pricing,
         seriesInfo: selectedSeries,
         trackInfo: selectedTrack,
         discountsInfo: discountsInfo as any,
-        approvalInfo: props.approvalInfo
+        approvalInfo: props.approvalInfo,
+        // Pass notes when present regardless of flag (UI gating já previne input quando OFF)
+        paymentNotes: (paymentNotes && paymentNotes.trim().length > 0) ? paymentNotes : undefined
       }
       
       // Generate PDF
@@ -226,7 +246,7 @@ export default function SummaryStep(props: StepProps) {
     } finally {
       setIsGeneratingPdf(false)
     }
-  }, [formData, props.pricing, props.approvalInfo, selectedSeries, selectedTrack, discountsInfo])
+  }, [formData, props.pricing, props.approvalInfo, selectedSeries, selectedTrack, discountsInfo, paymentNotesEnabled, paymentNotes])
 
   // Debounced PDF generation to prevent multiple simultaneous calls
   const handleGeneratePdf = useMemo(
@@ -256,7 +276,8 @@ export default function SummaryStep(props: StepProps) {
           props.pricing!,
           selectedSeries,
           selectedTrack,
-          currentUser
+          currentUser,
+          { paymentNotesEnabled, paymentNotes }
         )
       } catch (rpcError) {
         console.warn('Falha na RPC enroll_finalize; aplicando fallback createEnrollmentRecord:', rpcError)
@@ -267,16 +288,33 @@ export default function SummaryStep(props: StepProps) {
           selectedTrack,
           currentUser
         )
+        // Fallback: se houver observações e a flag estiver ativa, tentar atualizar diretamente o registro
+        if (paymentNotesEnabled && paymentNotes && paymentNotes.trim().length > 0) {
+          try {
+            let s = paymentNotes.replace(/\r\n?/g, '\n').trim().replace(/\n{3,}/g, '\n\n')
+            if (s.length > 1000) s = s.slice(0, 1000)
+            if (s.length > 0) {
+              await supabase
+                .from('enrollments')
+                .update({ payment_notes: s, payment_notes_at: new Date().toISOString() })
+                .eq('id', enrollmentId)
+            }
+          } catch (e) {
+            console.warn('Falha ao atualizar payment_notes no fallback:', e)
+          }
+        }
       }
 
       // 2) Preparar dados da proposta (PDF)
+      console.debug('[SummaryStep] Finalize submit: notesEnabled=', paymentNotesEnabled, 'notesLen=', (paymentNotes || '').length)
       const proposalData: ProposalData = {
         formData,
         pricing: props.pricing,
         seriesInfo: selectedSeries || undefined,
         trackInfo: selectedTrack || undefined,
         discountsInfo: discountsInfo as any,
-        approvalInfo: props.approvalInfo
+        approvalInfo: props.approvalInfo,
+        paymentNotes: (paymentNotes && paymentNotes.trim().length > 0) ? paymentNotes : undefined
       }
 
       // 3) Gerar uma URL de preview para salvar no registro
@@ -304,7 +342,7 @@ export default function SummaryStep(props: StepProps) {
       setErrorMessage(message)
       toast.error('Erro ao salvar matrícula: ' + message)
     }
-  }, [formData, props.pricing, props.approvalInfo, selectedSeries, selectedTrack, discountsInfo, props])
+  }, [formData, props.pricing, props.approvalInfo, selectedSeries, selectedTrack, discountsInfo, paymentNotesEnabled, paymentNotes, props])
 
 
   // Send email (placeholder) 
@@ -438,6 +476,37 @@ export default function SummaryStep(props: StepProps) {
           </div>
         )}
       </div>
+
+      {/* F3 — Observações sobre a Forma de Pagamento (Aluno Novo) */}
+      {paymentNotesEnabled && (
+        <Card className="overflow-hidden">
+          <div className="p-6 space-y-3">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">
+                Observações sobre a Forma de Pagamento
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Campo livre e opcional para registrar combinações específicas de pagamento. Até 1000 caracteres.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="novo-payment-notes" className="text-sm">Mensagem ao financeiro/secretaria</Label>
+              <Textarea
+                id="novo-payment-notes"
+                placeholder="Ex.: Pagamento por boleto todo dia 05; primeira mensalidade com pró-rata."
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
+                rows={4}
+                maxLength={1000}
+              />
+              <div className="text-xs text-muted-foreground flex items-center justify-between">
+                <span>As observações serão salvas junto à matrícula quando enviadas.</span>
+                <span>{`${paymentNotes.length}/1000`}</span>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <div className="h-px bg-gray-200 my-8" />
 

@@ -14,6 +14,8 @@ export interface RematriculaProposalData {
   discounts: Array<{ trilho?: string; tipoDescontoId?: string; percentual?: number; id?: string; codigo?: string; nome?: string }>
   // Quando não houver descontos manuais, usar o sugerido (já com CAP aplicado)
   suggestedPercentageOverride?: number | null
+  // F4 — Observações sobre a Forma de Pagamento (opcional)
+  paymentNotes?: string | null
 }
 
 function formatCurrencyBR(value?: number | null): string {
@@ -44,7 +46,7 @@ export class RematriculaProposalGenerator {
     // Resetar doc a cada geração
     this.reset()
 
-    const { readModel, series, discounts, suggestedPercentageOverride } = data
+    const { readModel, series, discounts, suggestedPercentageOverride, paymentNotes } = data
 
     // 1) Determinar descontos efetivos (manuais ou sugerido CAP)
     let effectiveDiscounts = (discounts || []) as any[]
@@ -79,6 +81,7 @@ export class RematriculaProposalGenerator {
     const pricing = series ? RematriculaPricingService.calculate(series, formattedDiscounts as any) : null
 
     // 3) Montar dados para o template compacto (independente)
+    const normalizedNotes = (paymentNotes || '').toString().replace(/\r\n?/g, '\n').trim() || undefined
     const templateData: RematriculaProposalCompactData = {
       readModel,
       seriesInfo: {
@@ -97,6 +100,7 @@ export class RematriculaProposalGenerator {
         materialValue: pricing?.materialValue ?? readModel.financial?.material_cost ?? 0,
         totalDiscountPercentage: pricing?.totalDiscountPercentage ?? readModel.financial?.total_discount_percentage ?? 0,
       },
+      paymentNotes: normalizedNotes,
     }
 
     // 4) Gerar o PDF com o template compacto (mesmo visual do novo aluno)

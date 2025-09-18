@@ -31,7 +31,7 @@ import { mapMatriculaUserEscolaToFormValue, labelFromDbValue, labelFromFormValue
 import { getFormEscolaFromAny } from '@/features/matricula-nova/utils/escola'
 import { toast } from 'sonner'
 import { validateFinalizeInput } from '../services/rematriculaValidation'
-import { getSuggestedDiscountCap, applySuggestedDiscountCap, invalidateSuggestedDiscountCapCache, getMacomConfig } from '@/lib/config/config.service'
+import { getSuggestedDiscountCap, applySuggestedDiscountCap, invalidateSuggestedDiscountCapCache, getMacomConfig, getRematriculaPaymentNotesConfig } from '@/lib/config/config.service'
 import type { MacomDiscountConfig } from '@/lib/config/config.service'
 import { isMacomTrack } from '../utils/track'
 import { getRematriculaProposalGenerator } from '../services/pdf/rematriculaProposalGenerator'
@@ -136,6 +136,7 @@ export default function RematriculaDetailsPage() {
   const [finalizeOpen, setFinalizeOpen] = useState(false)
   const [selectedShift, setSelectedShift] = useState<'morning' | 'afternoon' | 'night' | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [paymentNotes, setPaymentNotes] = useState<string>('')
   const currentUser = useCurrentUser()
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const { data: matriculaSession } = useMatriculaAuth()
@@ -144,6 +145,15 @@ export default function RematriculaDetailsPage() {
   const { data: editCfg } = useQuery({
     queryKey: ['rematricula-edit-config'],
     queryFn: async () => getRematriculaEditConfig(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
+  })
+
+  // F3 — Flag de Observações de Pagamento
+  const { data: paymentNotesCfg } = useQuery({
+    queryKey: ['rematricula-payment-notes-config'],
+    queryFn: async () => getRematriculaPaymentNotesConfig(),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
     refetchOnMount: 'always',
@@ -485,6 +495,7 @@ export default function RematriculaDetailsPage() {
                 series: selectedSeries,
                 discounts: selectedDiscounts as any,
                 suggestedPercentageOverride: (cappedSuggested ?? null) as any,
+                paymentNotes: Boolean(paymentNotesCfg?.enabled) ? (paymentNotes || undefined) : undefined,
               }
               await generator.generateAndDownload(proposalData)
             } catch (err) {
@@ -520,6 +531,9 @@ export default function RematriculaDetailsPage() {
           return (form ? labelFromFormValue(form) : (raw ? labelFromDbValue(raw) : null)) || undefined
         })()}
         destinationEscolaLabel={labelFromDbValue(matriculaSession?.escola) || undefined}
+        paymentNotesEnabled={Boolean(paymentNotesCfg?.enabled)}
+        paymentNotes={paymentNotes}
+        onChangePaymentNotes={setPaymentNotes}
         onConfirm={async () => {
           if (!model) return
           if (!selectedSeries) {
@@ -572,6 +586,8 @@ export default function RematriculaDetailsPage() {
               currentUser,
               destinationSchoolFormValue: destinationSchoolForm,
               suggestedPercentageOverride: overrideToSend,
+              paymentNotesEnabled: Boolean(paymentNotesCfg?.enabled),
+              paymentNotes,
             })
             // Gerar PDF (independente; inspirado no fluxo de novo aluno)
             try {
@@ -580,7 +596,8 @@ export default function RematriculaDetailsPage() {
                 readModel: (merged || model) as any,
                 series: selectedSeries,
                 discounts: selectedDiscounts as any,
-                suggestedPercentageOverride: overrideToSend ?? (cappedSuggested ?? null)
+                suggestedPercentageOverride: overrideToSend ?? (cappedSuggested ?? null),
+                paymentNotes: Boolean(paymentNotesCfg?.enabled) ? (paymentNotes || undefined) : undefined,
               }
               const previewUrl = await generator.generatePreviewURL(proposalData)
               try {

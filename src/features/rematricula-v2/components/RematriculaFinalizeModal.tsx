@@ -10,6 +10,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import type { RematriculaReadModel } from '../types/details'
 import { formatCPF } from '../utils/formValidators'
 import { RematriculaPricingService } from '../services/rematriculaPricingService'
@@ -33,6 +35,10 @@ interface Props {
   suggestedPercentageOverride?: number | null
   // Info de CAP para aviso visual (F6)
   capInfo?: { capped: boolean; previousPercent: number; capPercent?: number } | null
+  // F3 — Observações sobre a Forma de Pagamento
+  paymentNotesEnabled?: boolean
+  paymentNotes?: string
+  onChangePaymentNotes?: (value: string) => void
 }
 
 const formatCurrency = (value?: number | null) => {
@@ -45,7 +51,7 @@ const formatPercent = (value?: number | null) => {
   return `${v.toFixed(2)}%`
 }
 
-export default function RematriculaFinalizeModal({ open, onOpenChange, readModel, selection, onConfirm, isSubmitting, errors, originEscolaLabel, destinationEscolaLabel, suggestedPercentageOverride, capInfo }: Props) {
+export default function RematriculaFinalizeModal({ open, onOpenChange, readModel, selection, onConfirm, isSubmitting, errors, originEscolaLabel, destinationEscolaLabel, suggestedPercentageOverride, capInfo, paymentNotesEnabled, paymentNotes, onChangePaymentNotes }: Props) {
   const academicSummary = useMemo(() => {
     const current = readModel?.academic || {}
     const sel = selection?.series || null
@@ -363,6 +369,28 @@ export default function RematriculaFinalizeModal({ open, onOpenChange, readModel
               </div>
             </div>
           </section>
+
+          {/* F3 — Observações sobre a Forma de Pagamento */}
+          {paymentNotesEnabled && (
+            <section>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-2">Observações sobre a Forma de Pagamento</h3>
+              <div className="space-y-2">
+                <Label htmlFor="payment-notes" className="text-sm">Campo livre (opcional)</Label>
+                <Textarea
+                  id="payment-notes"
+                  placeholder="Ex.: pagamento combinado via boleto até dia 05, com ajuste pró-rata no primeiro mês."
+                  value={paymentNotes || ''}
+                  onChange={(e) => onChangePaymentNotes?.(e.target.value)}
+                  maxLength={1000}
+                  rows={4}
+                />
+                <div className="text-xs text-muted-foreground flex items-center justify-between">
+                  <span>Será incluído na proposta (PDF) quando preenchido.</span>
+                  <span>{`${(paymentNotes || '').length}/1000`}</span>
+                </div>
+              </div>
+            </section>
+          )}
         </div>
 
         <DialogFooter className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t px-6 py-4">

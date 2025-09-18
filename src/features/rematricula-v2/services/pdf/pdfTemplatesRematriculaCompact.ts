@@ -60,6 +60,8 @@ export interface RematriculaProposalCompactData {
     materialValue: number
     totalDiscountPercentage: number
   }
+  // F4 — Observações sobre a Forma de Pagamento (opcional)
+  paymentNotes?: string
 }
 
 export class PDFTemplatesRematriculaCompact {
@@ -92,6 +94,12 @@ export class PDFTemplatesRematriculaCompact {
     this.drawSeparator()
 
     this.drawSection('E', 'RESUMO FINANCEIRO', () => this.drawFinancial(data))
+
+    // F — Observações sobre a Forma de Pagamento (apenas quando houver conteúdo)
+    if (data.paymentNotes && data.paymentNotes.trim().length > 0) {
+      this.drawSeparator()
+      this.drawSection('F', 'OBSERVAÇÕES SOBRE A FORMA DE PAGAMENTO', () => this.drawPaymentNotes(data))
+    }
 
     // Footer
     this.drawFooter()
@@ -372,6 +380,36 @@ export class PDFTemplatesRematriculaCompact {
 
     this.doc.setDrawColor(COLORS_REMATRICULA_COMPACT.borderGray)
     this.doc.line(LAYOUT_REMATRICULA_COMPACT.margins.left + 20, footerY + 11, 210 - LAYOUT_REMATRICULA_COMPACT.margins.right, footerY + 11)
+  }
+
+  private drawPaymentNotes(data: RematriculaProposalCompactData): void {
+    const text = (data.paymentNotes || '').trim()
+    if (!text) {
+      this.doc.setTextColor(COLORS_REMATRICULA_COMPACT.mediumGray)
+      this.doc.setFontSize(TYPOGRAPHY_REMATRICULA_COMPACT.body.size)
+      this.doc.text('—', LAYOUT_REMATRICULA_COMPACT.margins.left, this.currentY)
+      this.currentY += LAYOUT_REMATRICULA_COMPACT.lineHeight
+      return
+    }
+
+    // Normalizar quebras de linha e dividir por largura
+    const normalized = text.replace(/\r\n?/g, '\n')
+    const lines = this.doc.splitTextToSize(normalized, LAYOUT_REMATRICULA_COMPACT.contentWidth)
+
+    // Checar espaço restante na página; se insuficiente, cria nova página antes de desenhar
+    const bottomLimit = 297 - LAYOUT_REMATRICULA_COMPACT.margins.bottom - 20
+    const estimatedHeight = lines.length * (TYPOGRAPHY_REMATRICULA_COMPACT.body.size * 0.5 + 3)
+    if (this.currentY + estimatedHeight > bottomLimit) {
+      this.doc.addPage()
+      this.currentY = LAYOUT_REMATRICULA_COMPACT.margins.top
+    }
+
+    this.doc.setTextColor(COLORS_REMATRICULA_COMPACT.text)
+    this.doc.setFont('helvetica', 'normal')
+    this.doc.setFontSize(TYPOGRAPHY_REMATRICULA_COMPACT.body.size)
+    this.doc.text(lines as any, LAYOUT_REMATRICULA_COMPACT.margins.left, this.currentY)
+
+    this.currentY += (lines.length * 5) + 2
   }
 
   // Utilitários

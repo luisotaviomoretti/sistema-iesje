@@ -19,6 +19,9 @@ export interface BuildPayloadInput {
   destinationSchoolFormValue?: string | null
   // Quando não há descontos manuais, usar este percentual sugerido (ex.: já aplicando CAP)
   suggestedPercentageOverride?: number
+  // F3 — Observações da Forma de Pagamento (flag + valor opcional)
+  paymentNotesEnabled?: boolean
+  paymentNotes?: string
 }
 
 export interface BuildPayloadOutput {
@@ -53,7 +56,7 @@ function toDateOnly(value?: string | null): string | null {
 }
 
 export const RematriculaSubmissionService = {
-  buildPayload({ readModel, series, discounts, shift, currentUser, destinationSchoolFormValue, suggestedPercentageOverride }: BuildPayloadInput): BuildPayloadOutput {
+  buildPayload({ readModel, series, discounts, shift, currentUser, destinationSchoolFormValue, suggestedPercentageOverride, paymentNotesEnabled, paymentNotes }: BuildPayloadInput): BuildPayloadOutput {
     const student = readModel.student || ({} as any)
     const guardians = readModel.guardians || ({} as any)
     const address = readModel.address || ({} as any)
@@ -195,6 +198,19 @@ export const RematriculaSubmissionService = {
       created_by_user_type: currentUser?.type || 'anonymous',
       
       // tag_matricula derivada no servidor (trigger BEFORE INSERT)
+    }
+
+    // F3 — Incluir observações de pagamento, quando habilitado e preenchido (sanitização leve no cliente)
+    if (paymentNotesEnabled) {
+      const raw = (paymentNotes || '').toString()
+      const trimmed = raw.trim()
+      if (trimmed.length > 0) {
+        // Normalizar quebras de linha para LF, colapsar 3+ em 2, limitar 1000 chars
+        const normalized = trimmed.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').slice(0, 1000)
+        if (normalized.length > 0) {
+          p_enrollment.payment_notes = normalized
+        }
+      }
     }
 
     const p_discounts = (formattedDiscounts || []).map((d: any) => ({
