@@ -370,27 +370,6 @@ export class PDFTemplatesRematriculaCompact {
 
     this.currentY = startY + tableHeight + 8
 
-    autoTable(this.doc, {
-      startY: this.currentY,
-      head: [['Totais Anuais (sem desconto)', 'Valor']],
-      body: [
-        ['Anual sem material', this.formatCurrency(annualBase)],
-        ['Anual material', this.formatCurrency(annualMat)],
-        ['Anual com material', this.formatCurrency(annualCom)],
-      ],
-      margin: { left: LAYOUT_REMATRICULA_COMPACT.margins.left, right: LAYOUT_REMATRICULA_COMPACT.margins.right },
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: COLORS_REMATRICULA_COMPACT.lightGray, textColor: COLORS_REMATRICULA_COMPACT.text, fontStyle: 'bold' },
-      columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 40, halign: 'right' } },
-    })
-
-    this.currentY = (this.doc as any).lastAutoTable.finalY + 3
-    this.doc.setTextColor(COLORS_REMATRICULA_COMPACT.mediumGray)
-    this.doc.setFont('helvetica', 'normal')
-    this.doc.setFontSize(TYPOGRAPHY_REMATRICULA_COMPACT.small.size)
-    this.doc.text(`Fonte: ${useDb ? 'banco' : 'x12 (derivado)'}`, LAYOUT_REMATRICULA_COMPACT.margins.left, this.currentY)
-    this.currentY += 5
-
     // Destaque de VALOR FINAL (mensal ou anual conforme toggle)
     const finalBoxHeight = 12
     const finalBoxY = this.currentY

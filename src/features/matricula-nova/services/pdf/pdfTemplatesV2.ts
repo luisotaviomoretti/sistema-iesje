@@ -332,54 +332,6 @@ export class PDFTemplatesV2 {
     })
 
     this.currentY = (this.doc as any).lastAutoTable.finalY + 5
-
-    // Totais Anuais (sem desconto) — usar campos anuais do banco quando disponíveis; fallback x12
-    const toNum = (v: any) => {
-      const n = Number(v)
-      return Number.isFinite(n) ? n : null
-    }
-    const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
-
-    const mensalSem = toNum(data.seriesInfo?.valor_mensal_sem_material) ?? toNum(pricing.baseValue) ?? 0
-    const mensalMat = toNum(data.seriesInfo?.valor_material) ?? toNum(pricing.materialCost) ?? 0
-    const mensalCom = toNum(data.seriesInfo?.valor_mensal_com_material) ?? (mensalSem + mensalMat)
-
-    const dbAnualSem = toNum((data.seriesInfo as any)?.valor_anual_sem_material)
-    const dbAnualMat = toNum((data.seriesInfo as any)?.valor_anual_material)
-    const dbAnualCom = toNum((data.seriesInfo as any)?.valor_anual_com_material)
-
-    const derivedSem = round2(mensalSem * 12)
-    const derivedMat = round2(mensalMat * 12)
-    const derivedCom = round2(mensalCom * 12)
-
-    const useDb = [dbAnualSem, dbAnualMat, dbAnualCom].some(v => typeof v === 'number')
-    const annualBase = round2(dbAnualSem ?? derivedSem)
-    const annualMat = round2(dbAnualMat ?? derivedMat)
-    const annualCom = round2(dbAnualCom ?? (annualBase + annualMat))
-
-    const annualData: [string, string][] = [
-      ['Anual sem material', this.formatCurrency(annualBase)],
-      ['Anual material', this.formatCurrency(annualMat)],
-      ['Anual com material', this.formatCurrency(annualCom)],
-    ]
-
-    autoTable(this.doc, {
-      startY: this.currentY,
-      head: [['Totais Anuais (sem desconto)', 'Valor']],
-      body: annualData,
-      margin: { left: LAYOUT_V2.margins.left, right: LAYOUT_V2.margins.right },
-      styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: COLORS_V2.primary, textColor: COLORS_V2.white, fontStyle: 'bold' },
-      columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 40, halign: 'right' } },
-    })
-
-    this.currentY = (this.doc as any).lastAutoTable.finalY + 3
-    this.doc.setTextColor(COLORS_V2.lightText)
-    this.doc.setFont('helvetica', 'normal')
-    this.doc.setFontSize(FONTS_V2.small.size)
-    const sourceText = `Fonte: ${useDb ? 'banco' : 'x12 (derivado)'}`
-    this.doc.text(sourceText, LAYOUT_V2.margins.left, this.currentY)
-    this.currentY += 3
   }
 
   /**
