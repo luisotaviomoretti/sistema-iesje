@@ -1,4 +1,6 @@
 import React from 'react'
+import { useQuery } from '@tanstack/react-query'
+
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -12,6 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PricingCalculation } from '../../types/business'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
 
 interface SimpleValuesSummaryProps {
   pricing: PricingCalculation | null
@@ -24,7 +27,16 @@ export function SimpleValuesSummary({
   isLoading = false,
   className
 }: SimpleValuesSummaryProps) {
-  
+  // Config de modo anual com cache (não altera lógica de negócio)
+  const { data: annualCfg } = useQuery({
+    queryKey: ['series-annual-values-config'],
+    queryFn: async () => getSeriesAnnualValuesConfig(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
+  const annualEnabled = Boolean(annualCfg?.enabled)
+  const mult = annualEnabled ? 12 : 1
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -96,7 +108,7 @@ export function SimpleValuesSummary({
                 Resumo de Valores
               </h3>
               <p className="text-sm text-gray-600">
-                Mensalidades finais com desconto aplicado
+                {annualEnabled ? 'Totais anuais com desconto aplicado' : 'Mensalidades finais com desconto aplicado'}
               </p>
             </div>
           </div>
@@ -119,7 +131,7 @@ export function SimpleValuesSummary({
               <span className="font-medium text-gray-900">Valor base (com material)</span>
             </div>
             <span className="font-semibold text-gray-900">
-              {formatCurrency(pricing.baseValue)}
+              {formatCurrency(pricing.baseValue * mult)}
             </span>
           </div>
 
@@ -133,7 +145,7 @@ export function SimpleValuesSummary({
                 </span>
               </div>
               <span className="font-semibold text-green-700">
-                -{formatCurrency(pricing.totalDiscountValue)}
+                -{formatCurrency(pricing.totalDiscountValue * mult)}
               </span>
             </div>
           )}
@@ -149,7 +161,7 @@ export function SimpleValuesSummary({
                 <BookOpen className="w-5 h-5 text-orange-600" />
                 <div>
                   <span className="font-semibold text-orange-900">
-                    Mensalidade final (sem material)
+                    {annualEnabled ? 'Valor final anual (sem material)' : 'Mensalidade final (sem material)'}
                   </span>
                   <p className="text-xs text-orange-700">
                     Não inclui material didático
@@ -158,9 +170,9 @@ export function SimpleValuesSummary({
               </div>
               <div className="text-right">
                 <div className="text-xl font-bold text-orange-900">
-                  {formatCurrency(mensalidadeFinalSemMaterial)}
+                  {formatCurrency(mensalidadeFinalSemMaterial * mult)}
                 </div>
-                <div className="text-sm text-orange-700">por mês</div>
+                <div className="text-sm text-orange-700">{annualEnabled ? 'por ano' : 'por mês'}</div>
               </div>
             </div>
 
@@ -170,7 +182,7 @@ export function SimpleValuesSummary({
                 <CreditCard className="w-5 h-5 text-blue-600" />
                 <div>
                   <span className="font-semibold text-blue-900">
-                    Mensalidade final (com material)
+                    {annualEnabled ? 'Valor final anual (com material)' : 'Mensalidade final (com material)'}
                   </span>
                   <p className="text-xs text-blue-700">
                     Inclui material didático
@@ -179,9 +191,9 @@ export function SimpleValuesSummary({
               </div>
               <div className="text-right">
                 <div className="text-2xl font-bold text-blue-900">
-                  {formatCurrency(pricing.finalValue)}
+                  {formatCurrency(pricing.finalValue * mult)}
                 </div>
-                <div className="text-sm text-blue-700">por mês</div>
+                <div className="text-sm text-blue-700">{annualEnabled ? 'por ano' : 'por mês'}</div>
               </div>
             </div>
           </div>
@@ -194,8 +206,8 @@ export function SimpleValuesSummary({
                 <div className="text-green-800">
                   <p className="font-medium">Desconto aplicado com sucesso!</p>
                   <p className="text-green-700 mt-1">
-                    Economia mensal de <strong>{formatCurrency(pricing.totalDiscountValue)}</strong>
-                    {' '}({formatPercentage(pricing.totalDiscountPercentage)}) aplicada nos valores.
+                    Economia {annualEnabled ? 'anual' : 'mensal'} de <strong>{formatCurrency(pricing.totalDiscountValue * mult)}</strong>
+                    {' '}( {formatPercentage(pricing.totalDiscountPercentage)} ) aplicada nos valores.
                   </p>
                 </div>
               </div>
@@ -215,7 +227,7 @@ export function SimpleValuesSummary({
                       {discount.name} ({formatPercentage(discount.percentage)})
                     </span>
                     <span className="font-medium text-green-600">
-                      -{formatCurrency(discount.value)}
+                      -{formatCurrency(discount.value * mult)}
                     </span>
                   </div>
                 ))}

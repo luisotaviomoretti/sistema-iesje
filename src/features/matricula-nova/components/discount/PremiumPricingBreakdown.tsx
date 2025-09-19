@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -6,7 +8,6 @@ import { Separator } from '@/components/ui/separator'
 import { 
   Calculator,
   DollarSign,
-  TrendingDown,
   Eye,
   EyeOff,
   FileText,
@@ -19,10 +20,10 @@ import {
   CreditCard,
   PiggyBank,
   Crown,
-  ArrowDown,
-  ArrowRight
+  ArrowDown
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
 
 // ============================================================================
 // INTERFACES E TIPOS
@@ -64,6 +65,16 @@ export function PremiumPricingBreakdown({
   const [isExpanded, setIsExpanded] = useState(false)
   const [animationStep, setAnimationStep] = useState(0)
   const [showCalculation, setShowCalculation] = useState(true)
+
+  // Config: modo anual (com cache e sem chamadas redundantes)
+  const { data: annualCfg } = useQuery({
+    queryKey: ['series-annual-values-config'],
+    queryFn: async () => getSeriesAnnualValuesConfig(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
+  const annualEnabled = Boolean(annualCfg?.enabled)
+  const mult = annualEnabled ? 12 : 1
 
   // ========================================================================
   // EFEITOS DE ANIMAÇÃO
@@ -259,7 +270,7 @@ export function PremiumPricingBreakdown({
                 <Crown className="w-6 h-6 text-yellow-500" />
               </div>
               <p className="text-gray-600 font-medium">
-                Breakdown detalhado da mensalidade
+                {annualEnabled ? 'Breakdown detalhado anual' : 'Breakdown detalhado da mensalidade'}
               </p>
             </div>
           </div>
@@ -303,12 +314,11 @@ export function PremiumPricingBreakdown({
               <FileText className="w-5 h-5 text-blue-600" />
               <h4 className="font-semibold text-gray-900">Demonstração do Cálculo</h4>
             </div>
-            
             <div className="space-y-3">
               <CalculationStep
                 icon={CreditCard}
-                label="Valor mensal com material"
-                value={formatCurrency(data.valorMensalComMaterial)}
+                label={annualEnabled ? 'Valor anual com material' : 'Valor mensal com material'}
+                value={formatCurrency(data.valorMensalComMaterial * mult)}
                 step={0}
                 showOperator={false}
               />
@@ -316,7 +326,7 @@ export function PremiumPricingBreakdown({
               <CalculationStep
                 icon={BookOpen}
                 label="Valor do material didático"
-                value={formatCurrency(data.valorMaterial)}
+                value={formatCurrency(data.valorMaterial * mult)}
                 type="negative"
                 step={1}
                 showOperator={true}
@@ -329,8 +339,8 @@ export function PremiumPricingBreakdown({
               
               <CalculationStep
                 icon={DollarSign}
-                label="Valor mensal sem material"
-                value={formatCurrency(data.valorMensalSemMaterial)}
+                label={annualEnabled ? 'Valor anual sem material' : 'Valor mensal sem material'}
+                value={formatCurrency(data.valorMensalSemMaterial * mult)}
                 step={2}
                 showOperator={true}
                 operator="="
@@ -340,7 +350,7 @@ export function PremiumPricingBreakdown({
               <CalculationStep
                 icon={PiggyBank}
                 label={`Desconto aplicado (${formatPercentage(data.percentualDesconto)})`}
-                value={formatCurrency(data.descontoAplicado)}
+                value={formatCurrency(data.descontoAplicado * mult)}
                 type="positive"
                 step={3}
                 showOperator={true}
@@ -353,8 +363,8 @@ export function PremiumPricingBreakdown({
               
               <CalculationStep
                 icon={Crown}
-                label="Mensalidade final (com material)"
-                value={formatCurrency(data.mensalidadeFinal)}
+                label={annualEnabled ? 'Valor final anual (com material)' : 'Mensalidade final (com material)'}
+                value={formatCurrency(data.mensalidadeFinal * mult)}
                 type="final"
                 step={4}
                 showOperator={true}
@@ -367,10 +377,8 @@ export function PremiumPricingBreakdown({
 
         {/* Resumo Visual Premium */}
         <div className="relative z-10 space-y-6">
-          
           {/* Cards principais */}
           <div className="grid gap-4 md:grid-cols-2">
-            
             {/* Valor Original */}
             <Card className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200">
               <div className="flex items-center justify-between">
@@ -384,7 +392,7 @@ export function PremiumPricingBreakdown({
                   </div>
                 </div>
                 <AnimatedValue 
-                  value={formatCurrency(data.valorMensalComMaterial)}
+                  value={formatCurrency(data.valorMensalComMaterial * mult)}
                   className="text-xl font-bold text-gray-700"
                 />
               </div>
@@ -403,7 +411,7 @@ export function PremiumPricingBreakdown({
                   </div>
                 </div>
                 <AnimatedValue 
-                  value={formatCurrency(data.descontoAplicado)}
+                  value={formatCurrency(data.descontoAplicado * mult)}
                   className="text-xl font-bold text-green-600"
                   prefix="-"
                 />
@@ -425,7 +433,7 @@ export function PremiumPricingBreakdown({
                 </div>
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h3 className="text-2xl font-bold text-white">Mensalidade Final</h3>
+                    <h3 className="text-2xl font-bold text-white">{annualEnabled ? 'Valor Final Anual' : 'Mensalidade Final'}</h3>
                     <Sparkles className="w-6 h-6 text-yellow-300" />
                   </div>
                   <p className="text-blue-100 font-medium">Valor com desconto + material incluído</p>
@@ -433,10 +441,10 @@ export function PremiumPricingBreakdown({
               </div>
               <div className="text-right">
                 <AnimatedValue 
-                  value={formatCurrency(data.mensalidadeFinal)}
+                  value={formatCurrency(data.mensalidadeFinal * mult)}
                   className="text-4xl font-bold text-white drop-shadow-lg"
                 />
-                <p className="text-blue-100 font-medium mt-1">por mês</p>
+                <p className="text-blue-100 font-medium mt-1">{annualEnabled ? 'por ano' : 'por mês'}</p>
               </div>
             </div>
 
@@ -445,7 +453,7 @@ export function PremiumPricingBreakdown({
               <div className="relative z-10 mt-4 flex items-center justify-center">
                 <Badge className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 text-sm font-semibold">
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  Economia aplicada: {formatCurrency(data.descontoAplicado)} mensais
+                  Economia aplicada: {formatCurrency(data.descontoAplicado * mult)} {annualEnabled ? 'anuais' : 'mensais'}
                 </Badge>
               </div>
             )}
@@ -471,7 +479,7 @@ export function PremiumPricingBreakdown({
                       </div>
                       <p className="text-sm text-gray-600 mb-1">Base sem material</p>
                       <p className="text-lg font-bold text-gray-900">
-                        {formatCurrency(data.valorMensalSemMaterial)}
+                        {formatCurrency(data.valorMensalSemMaterial * mult)}
                       </p>
                     </div>
                   </div>
@@ -483,7 +491,7 @@ export function PremiumPricingBreakdown({
                       </div>
                       <p className="text-sm text-gray-600 mb-1">Desconto</p>
                       <p className="text-lg font-bold text-red-600">
-                        -{formatCurrency(data.descontoAplicado)}
+                        -{formatCurrency(data.descontoAplicado * mult)}
                       </p>
                     </div>
                   </div>
@@ -495,7 +503,7 @@ export function PremiumPricingBreakdown({
                       </div>
                       <p className="text-sm text-gray-600 mb-1">Material</p>
                       <p className="text-lg font-bold text-yellow-600">
-                        +{formatCurrency(data.valorMaterial)}
+                        +{formatCurrency(data.valorMaterial * mult)}
                       </p>
                     </div>
                   </div>
@@ -514,7 +522,7 @@ export function PremiumPricingBreakdown({
                           </div>
                           <div className="text-right">
                             <p className="font-bold text-green-700">
-                              -{formatCurrency(desconto.valor)}
+                              -{formatCurrency(desconto.valor * mult)}
                             </p>
                             <p className="text-sm text-green-600">
                               {formatPercentage(desconto.percentual)}

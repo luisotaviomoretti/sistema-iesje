@@ -69,6 +69,11 @@ export default function NextYearSelection({
     return (series || []).find(s => s.id === seriesId) || null
   }, [series, seriesId])
 
+  // UI flag: ocultar cartões de valores para a série selecionada (não disruptivo)
+  const SHOW_SERIES_PRICES = false
+  // UI flag: ocultar badge de sugestão de série
+  const SHOW_SERIES_SUGGESTION = false
+
   return (
     <Card>
       <CardHeader>
@@ -91,7 +96,7 @@ export default function NextYearSelection({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>Série do Próximo Ano</Label>
-            {suggestedSeries && suggestedSeries.id !== seriesId && (
+            {suggestedSeries && suggestedSeries.id !== seriesId && SHOW_SERIES_SUGGESTION && (
               <Badge variant="secondary" className="text-xs">
                 Sugestão: {suggestedSeries.nome}
               </Badge>
@@ -122,7 +127,7 @@ export default function NextYearSelection({
             </Select>
           )}
           {/* Valores da série selecionada */}
-          {selectedSerie && (
+          {selectedSerie && SHOW_SERIES_PRICES && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 text-sm">
               <div className="rounded-md border p-3">
                 <div className="text-muted-foreground">Mensalidade c/ material</div>

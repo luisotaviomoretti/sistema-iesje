@@ -62,6 +62,8 @@ export interface RematriculaProposalCompactData {
   }
   // F4 — Observações sobre a Forma de Pagamento (opcional)
   paymentNotes?: string
+  // F4 — Toggle de exibição anual
+  annualModeEnabled?: boolean
 }
 
 export class PDFTemplatesRematriculaCompact {
@@ -293,11 +295,44 @@ export class PDFTemplatesRematriculaCompact {
     const mensalidadeFinalSemMaterial = valorSemMaterial - descontoValor
     const mensalidadeFinalComMaterial = mensalidadeFinalSemMaterial + valorMaterial
 
-    const tableData: [string, string][] = [
-      ['Valor sem material:', this.formatCurrency(valorSemMaterial)],
-      ['Valor com material:', this.formatCurrency(valorComMaterial)],
-      ['Desconto aplicado:', `${descontoPercentual.toFixed(1)}% (${this.formatCurrency(descontoValor)})`],
-    ]
+    // Totais Anuais (sem desconto) — usar campos anuais do banco (quando houver), senão x12 do mensal
+    const toNum = (v: any) => {
+      const n = Number(v)
+      return Number.isFinite(n) ? n : null
+    }
+    const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
+
+    const dbAnualSem = toNum((data.seriesInfo as any)?.valor_anual_sem_material)
+    const dbAnualMat = toNum((data.seriesInfo as any)?.valor_anual_material)
+    const dbAnualCom = toNum((data.seriesInfo as any)?.valor_anual_com_material)
+
+    const derivedSem = round2(valorSemMaterial * 12)
+    const derivedMat = round2(valorMaterial * 12)
+    const derivedCom = round2(valorComMaterial * 12)
+
+    const useDb = [dbAnualSem, dbAnualMat, dbAnualCom].some(v => typeof v === 'number')
+    const annualBase = round2(dbAnualSem ?? derivedSem)
+    const annualMat = round2(dbAnualMat ?? derivedMat)
+    const annualCom = round2(dbAnualCom ?? (annualBase + annualMat))
+
+    // Descontos anuais — calcular sobre a BASE ANUAL (sem material)
+    const descontoAnual = round2((annualBase * descontoPercentual) / 100)
+    const finalAnnualSemMat = round2(mensalidadeFinalSemMaterial * 12)
+    const finalAnnualComMat = round2(finalAnnualSemMat + annualMat)
+
+    const isAnnual = !!data.annualModeEnabled
+
+    const tableData: [string, string][] = isAnnual
+      ? [
+          ['Anual sem material:', this.formatCurrency(annualBase)],
+          ['Anual com material:', this.formatCurrency(annualCom)],
+          ['Desconto aplicado (anual):', `${descontoPercentual.toFixed(1)}% (${this.formatCurrency(descontoAnual)})`],
+        ]
+      : [
+          ['Valor sem material:', this.formatCurrency(valorSemMaterial)],
+          ['Valor com material:', this.formatCurrency(valorComMaterial)],
+          ['Desconto aplicado:', `${descontoPercentual.toFixed(1)}% (${this.formatCurrency(descontoValor)})`],
+        ]
 
     const startX = LAYOUT_REMATRICULA_COMPACT.margins.left
     const startY = this.currentY
@@ -335,7 +370,28 @@ export class PDFTemplatesRematriculaCompact {
 
     this.currentY = startY + tableHeight + 8
 
-    // Destaque VALOR FINAL MENSAL (com material)
+    autoTable(this.doc, {
+      startY: this.currentY,
+      head: [['Totais Anuais (sem desconto)', 'Valor']],
+      body: [
+        ['Anual sem material', this.formatCurrency(annualBase)],
+        ['Anual material', this.formatCurrency(annualMat)],
+        ['Anual com material', this.formatCurrency(annualCom)],
+      ],
+      margin: { left: LAYOUT_REMATRICULA_COMPACT.margins.left, right: LAYOUT_REMATRICULA_COMPACT.margins.right },
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: COLORS_REMATRICULA_COMPACT.lightGray, textColor: COLORS_REMATRICULA_COMPACT.text, fontStyle: 'bold' },
+      columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 40, halign: 'right' } },
+    })
+
+    this.currentY = (this.doc as any).lastAutoTable.finalY + 3
+    this.doc.setTextColor(COLORS_REMATRICULA_COMPACT.mediumGray)
+    this.doc.setFont('helvetica', 'normal')
+    this.doc.setFontSize(TYPOGRAPHY_REMATRICULA_COMPACT.small.size)
+    this.doc.text(`Fonte: ${useDb ? 'banco' : 'x12 (derivado)'}`, LAYOUT_REMATRICULA_COMPACT.margins.left, this.currentY)
+    this.currentY += 5
+
+    // Destaque de VALOR FINAL (mensal ou anual conforme toggle)
     const finalBoxHeight = 12
     const finalBoxY = this.currentY
 
@@ -347,8 +403,8 @@ export class PDFTemplatesRematriculaCompact {
     this.doc.setFontSize(14)
     this.doc.setTextColor(COLORS_REMATRICULA_COMPACT.primary)
 
-    const finalText = 'VALOR FINAL MENSAL:'
-    const finalValue = this.formatCurrency(mensalidadeFinalComMaterial)
+    const finalText = isAnnual ? 'VALOR FINAL ANUAL:' : 'VALOR FINAL MENSAL:'
+    const finalValue = isAnnual ? this.formatCurrency(finalAnnualComMat) : this.formatCurrency(mensalidadeFinalComMaterial)
     const fullText = `${finalText} ${finalValue}`
 
     const textWidth = this.doc.getTextWidth(fullText)

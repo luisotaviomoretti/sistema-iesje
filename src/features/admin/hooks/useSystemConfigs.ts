@@ -41,17 +41,17 @@ export const useSystemConfig = (chave: string | undefined) => {
         .from('system_configs')
         .select('*')
         .eq('chave', chave)
-        .single()
+        .order('updated_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(1)
       
       if (error) {
-        if (error.code === 'PGRST116') { // Not found
-          return null
-        }
         console.error('Erro ao buscar configuração:', error)
         throw new Error(error.message)
       }
       
-      return data as SystemConfig
+      const rows = (data || []) as SystemConfig[]
+      return rows.length > 0 ? rows[0] : null
     },
     enabled: !!chave,
   })
@@ -175,14 +175,16 @@ export const useUpdateConfigValue = () => {
         })
         .eq('chave', chave)
         .select()
-        .single()
       
       if (error) {
         console.error('Erro ao atualizar valor da configuração:', error)
         throw new Error(error.message)
       }
       
-      return data as SystemConfig
+      const rows = (data || []) as SystemConfig[]
+      // Retorna a primeira linha atualizada (evita 406 quando há linhas duplicadas para mesma chave)
+      if (rows.length > 0) return rows[0]
+      throw new Error('Nenhuma linha atualizada para a chave informada')
     },
     onSuccess: (updatedConfig) => {
       queryClient.invalidateQueries({ queryKey: ['system-configs'] })

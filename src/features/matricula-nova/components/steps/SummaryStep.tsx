@@ -435,11 +435,11 @@ export default function SummaryStep(props: StepProps) {
         {/* 6. Resumo Financeiro */}
         <FinancialBreakdownCard
           pricing={props.pricing}
-          seriesData={selectedSeries ? {
-            valor_material: selectedSeries.valor_material,
-            valor_mensal_sem_material: selectedSeries.valor_mensal_sem_material, 
-            valor_mensal_com_material: selectedSeries.valor_mensal_com_material || selectedSeries.value
-          } : null}
+          seriesData={selectedSeries ? ({
+            ...selectedSeries,
+            // Preserva fallback histórico para mensal com material
+            valor_mensal_com_material: selectedSeries.valor_mensal_com_material || (selectedSeries as any).value
+          } as any) : null}
           isLoading={false}
           showPdfButton={false}
           readOnlyMode={true}

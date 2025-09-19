@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,6 +8,13 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 import { useAdminAuth } from '@/features/admin/hooks/useAdminAuth'
 import { 
@@ -30,6 +38,8 @@ import {
   primeRematriculaPaymentNotesConfigCache,
   invalidateNovomatriculaPaymentNotesConfigCache,
   primeNovomatriculaPaymentNotesConfigCache,
+  invalidateSeriesAnnualValuesConfigCache,
+  primeSeriesAnnualValuesConfigCache,
 } from '@/lib/config/config.service'
 
 const KEY_ENABLED = 'rematricula.suggested_discount_cap.enabled'
@@ -73,7 +83,12 @@ const PAY_NOTES_KEY_ENABLED = 'rematricula.payment_notes.enabled'
 // Chave Aluno Novo — Observações da Forma de Pagamento (flag FE)
 const NOVO_PAY_NOTES_KEY_ENABLED = 'novomatricula.payment_notes.enabled'
 
+// Chaves Séries — Valores Anuais
+const SERIES_KEY_ENABLED = 'series.annual_values.enabled'
+const SERIES_KEY_INPUT_MODE = 'series.annual_values.input_mode'
+
 export default function SystemConfigurations() {
+  const queryClient = useQueryClient()
   const { data: adminSession } = useAdminAuth()
   const adminEmail = adminSession?.user?.email || 'admin@unknown'
 
@@ -115,6 +130,10 @@ export default function SystemConfigurations() {
   const [homeScopeDefault, setHomeScopeDefault] = useState<'student' | 'guardian'>('student')
   const [homeAcademicYear, setHomeAcademicYear] = useState<string>(String(new Date().getFullYear()))
 
+  // Séries — Valores Anuais — estados locais
+  const [seriesAnnualEnabled, setSeriesAnnualEnabled] = useState<boolean>(false)
+  const [seriesAnnualMode, setSeriesAnnualMode] = useState<'annual' | 'monthly'>('monthly')
+
   // Rematrícula — Edição dos Cards (defaults ON por padrão)
   const { data: editEnabledPublic, isLoading: loadingEditEnabled } = usePublicSystemConfig(EDIT_KEY_ENABLED)
   const { data: editStudentPublic, isLoading: loadingEditStudent } = usePublicSystemConfig(EDIT_KEY_STUDENT)
@@ -138,6 +157,10 @@ export default function SystemConfigurations() {
 
   // Aluno Novo — Observações da Forma de Pagamento (leitura pública)
   const { data: novoPayNotesEnabledPublic, isLoading: loadingNovoPayNotesEnabled } = usePublicSystemConfig(NOVO_PAY_NOTES_KEY_ENABLED)
+
+  // Séries — Valores Anuais — leitura pública
+  const { data: seriesAnnualEnabledPublic, isLoading: loadingSeriesAnnualEnabled } = usePublicSystemConfig(SERIES_KEY_ENABLED)
+  const { data: seriesAnnualModePublic, isLoading: loadingSeriesAnnualMode } = usePublicSystemConfig(SERIES_KEY_INPUT_MODE)
 
   const [editEnabled, setEditEnabled] = useState<boolean>(true)
   const [editStudentEnabled, setEditStudentEnabled] = useState<boolean>(true)
@@ -514,6 +537,72 @@ export default function SystemConfigurations() {
     }
   }, [novoPayNotesEnabledPublic])
 
+  // Séries — Valores Anuais (hidratação)
+  useEffect(() => {
+    if (seriesAnnualEnabledPublic != null) {
+      const v = String(seriesAnnualEnabledPublic).trim().toLowerCase()
+      setSeriesAnnualEnabled(v === 'true' || v === '1' || v === 'yes' || v === 'on')
+    }
+  }, [seriesAnnualEnabledPublic])
+  useEffect(() => {
+    if (seriesAnnualModePublic != null) {
+      const s = String(seriesAnnualModePublic).trim().toLowerCase()
+      setSeriesAnnualMode(s === 'annual' ? 'annual' : 'monthly')
+    }
+  }, [seriesAnnualModePublic])
+
+  // Salvar Séries — Valores Anuais (enabled + input_mode)
+  const handleSaveSeriesAnnual = async () => {
+    try {
+      // Helper: criação idempotente com fallback de categorias
+      const createWithAdminFallback = async (params: { chave: string; valor: string; descricao: string }) => {
+        const categoriesFallback = ['admin', 'sistema', 'matriculas', 'config', 'geral']
+        let lastErr: any = null
+        for (const cat of categoriesFallback) {
+          try {
+            await createConfig({ chave: params.chave, valor: params.valor, categoria: cat, descricao: params.descricao, updated_by: adminEmail })
+            return
+          } catch (e: any) {
+            lastErr = e
+            const msg = String(e?.message || '')
+            if (!msg.includes('system_configs_categoria_valid')) throw e
+          }
+        }
+        throw lastErr || new Error('Falha ao criar configuração (categoria inválida)')
+      }
+
+      const enabledVal = seriesAnnualEnabled ? 'true' : 'false'
+      const modeVal = seriesAnnualMode === 'annual' ? 'annual' : 'monthly'
+
+      const existsEnabled = seriesAnnualEnabledPublic != null
+      const existsMode = seriesAnnualModePublic != null
+
+      if (existsEnabled) {
+        await updateConfigValue({ chave: SERIES_KEY_ENABLED, valor: enabledVal, updated_by: adminEmail })
+      } else {
+        await createWithAdminFallback({ chave: SERIES_KEY_ENABLED, valor: enabledVal, descricao: 'Ativa a leitura/exibição de valores anuais das séries. Dark Launch seguro.' })
+      }
+
+      if (existsMode) {
+        await updateConfigValue({ chave: SERIES_KEY_INPUT_MODE, valor: modeVal, updated_by: adminEmail })
+      } else {
+        await createWithAdminFallback({ chave: SERIES_KEY_INPUT_MODE, valor: modeVal, descricao: 'Modo de entrada preferido para /admin/series: annual|monthly.' })
+      }
+
+      // Cache local — refletir imediatamente
+      invalidateSeriesAnnualValuesConfigCache()
+      primeSeriesAnnualValuesConfigCache({ enabled: seriesAnnualEnabled, inputMode: seriesAnnualMode })
+
+      // Invalida queries públicas para refletir rapidamente em outras rotas abertas
+      queryClient.invalidateQueries({ queryKey: ['public-system-config'] })
+
+      toast.success('Configurações de Valores Anuais (Séries) salvas com sucesso!')
+    } catch (err: any) {
+      console.error('[Admin Configurações] Falha ao salvar Séries — Valores Anuais:', err)
+      toast.error(err?.message || 'Erro ao salvar configurações de Valores Anuais (Séries)')
+    }
+  }
+
   // Salvar configurações Rematrícula — Home & Busca
   const handleSaveHome = async () => {
     try {
@@ -701,6 +790,7 @@ export default function SystemConfigurations() {
     || loadingMacomEnabled || loadingMacomCategories || loadingMacomOneOnly || loadingMacomHideSuggested
     || loadingInadEnabled || loadingInadReqG || loadingInadReqS
     || loadingPayNotesEnabled || loadingNovoPayNotesEnabled
+    || loadingSeriesAnnualEnabled || loadingSeriesAnnualMode
   const isSaving = saving || creating
 
   const parsedPercent = useMemo(() => {
@@ -1052,6 +1142,57 @@ export default function SystemConfigurations() {
               <Alert className="bg-muted/40">
                 <AlertDescription className="text-xs">
                   Dark Launch seguro: com o toggle desligado, nada muda no app. O cache local é invalidado após salvar para refletir imediatamente nos consumidores.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Séries — Valores Anuais</CardTitle>
+          <CardDescription>
+            Habilita a exibição e o input de valores ANUAIS das séries. Dark Launch: desligado = nada muda. Modo de entrada preferido controla o formulário em /admin/series.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Carregando configurações...</div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="font-medium">Ativar Valores Anuais das Séries</Label>
+                  <p className="text-xs text-muted-foreground">Quando ligado, a UI passa a exibir os campos anuais (com fallback x12) onde apropriado.</p>
+                </div>
+                <Switch checked={seriesAnnualEnabled} onCheckedChange={setSeriesAnnualEnabled} />
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-3 items-end">
+                <div className="space-y-1">
+                  <Label className="font-medium">Modo de entrada preferido</Label>
+                  <Select value={seriesAnnualMode} onValueChange={(v) => setSeriesAnnualMode((v as 'annual' | 'monthly'))}>
+                    <SelectTrigger className="w-[220px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Mensal (legado)</SelectItem>
+                      <SelectItem value="annual">Anual (preferido)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Controla como o formulário de Séries solicitará os valores durante a transição.</p>
+                </div>
+                <Button onClick={handleSaveSeriesAnnual} disabled={isSaving}>
+                  {isSaving ? 'Salvando...' : 'Salvar alterações'}
+                </Button>
+              </div>
+
+              <Alert className="bg-muted/40">
+                <AlertDescription className="text-xs">
+                  Rollout seguro: os campos anuais permanecem facultativos no banco (F1). Este toggle apenas habilita a leitura/exibição no FE e a preferência de input.
                 </AlertDescription>
               </Alert>
             </>

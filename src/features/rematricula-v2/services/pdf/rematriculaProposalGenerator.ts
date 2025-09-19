@@ -7,6 +7,7 @@ import {
   PDF_CONFIG_REMATRICULA_COMPACT,
   type RematriculaProposalCompactData,
 } from './pdfTemplatesRematriculaCompact'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
 
 export interface RematriculaProposalData {
   readModel: RematriculaReadModel
@@ -48,6 +49,9 @@ export class RematriculaProposalGenerator {
 
     const { readModel, series, discounts, suggestedPercentageOverride, paymentNotes } = data
 
+    // F4 — Toggle: Valores Anuais
+    const annualCfg = await getSeriesAnnualValuesConfig()
+
     // 1) Determinar descontos efetivos (manuais ou sugerido CAP)
     let effectiveDiscounts = (discounts || []) as any[]
     const suggestedPercentage = (!effectiveDiscounts || effectiveDiscounts.length === 0)
@@ -84,14 +88,18 @@ export class RematriculaProposalGenerator {
     const normalizedNotes = (paymentNotes || '').toString().replace(/\r\n?/g, '\n').trim() || undefined
     const templateData: RematriculaProposalCompactData = {
       readModel,
-      seriesInfo: {
+      seriesInfo: ({
         id: series?.id,
         nome: series?.nome || readModel.academic?.series_name,
         valor_material: series?.valor_material ?? pricing?.materialValue ?? readModel.financial?.material_cost ?? 0,
         valor_mensal_sem_material: series?.valor_mensal_sem_material ?? pricing?.baseValue ?? readModel.financial?.base_value ?? 0,
         valor_mensal_com_material:
           series?.valor_mensal_com_material ?? ((pricing?.baseValue ?? readModel.financial?.base_value ?? 0) + (pricing?.materialValue ?? readModel.financial?.material_cost ?? 0)),
-      },
+        // F4 — campos anuais do banco (opcionais)
+        valor_anual_sem_material: (series as any)?.valor_anual_sem_material,
+        valor_anual_material: (series as any)?.valor_anual_material,
+        valor_anual_com_material: (series as any)?.valor_anual_com_material,
+      } as any),
       trackInfo: { id: series?.trilho_id, nome: series?.trilho_nome || readModel.academic?.track_name },
       selectedDiscounts: formattedDiscounts.map((d) => ({ id: d.id, percentual: d.percentual })),
       discountsInfo: formattedDiscounts.map((d) => ({ id: d.id, codigo: d.codigo, nome: d.nome })),
@@ -101,6 +109,7 @@ export class RematriculaProposalGenerator {
         totalDiscountPercentage: pricing?.totalDiscountPercentage ?? readModel.financial?.total_discount_percentage ?? 0,
       },
       paymentNotes: normalizedNotes,
+      annualModeEnabled: Boolean(annualCfg?.enabled),
     }
 
     // 4) Gerar o PDF com o template compacto (mesmo visual do novo aluno)

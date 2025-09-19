@@ -47,6 +47,12 @@ export interface MacomDiscountConfig {
   hideSuggested: boolean
 }
 
+// Séries — Valores Anuais (feature flag)
+export interface SeriesAnnualValuesConfig {
+  enabled: boolean
+  inputMode: 'annual' | 'monthly'
+}
+
 // Chaves no Supabase
 const CAP_KEYS = {
   enabled: 'rematricula.suggested_discount_cap.enabled',
@@ -86,6 +92,12 @@ const MACOM_KEYS = {
   hideSuggested: 'rematricula.macom.hide_suggested',
 } as const
 
+// Chaves Séries — Valores Anuais
+const SERIES_ANNUAL_KEYS = {
+  enabled: 'series.annual_values.enabled',
+  inputMode: 'series.annual_values.input_mode', // 'annual' | 'monthly'
+} as const
+
 // Chaves de cache no localStorage
 const LS_KEYS = {
   suggestedCap: 'cfg.suggested_discount_cap.v1',
@@ -96,6 +108,7 @@ const LS_KEYS = {
   rematriculaInad: 'cfg.rematricula_inad.v1',
   rematriculaPaymentNotes: 'cfg.rematricula_payment_notes.v1',
   novomatriculaPaymentNotes: 'cfg.novomatricula_payment_notes.v1',
+  seriesAnnualValues: 'cfg.series_annual_values.v1',
 } as const
 
 const DEFAULTS: SuggestedDiscountCapConfig = { enabled: false, percent: 20 }
@@ -115,6 +128,7 @@ const MACOM_DEFAULTS: MacomDiscountConfig = {
   hideSuggested: true,
 }
 const PAYMENT_NOTES_DEFAULTS: PaymentNotesConfig = { enabled: false }
+const SERIES_ANNUAL_DEFAULTS: SeriesAnnualValuesConfig = { enabled: false, inputMode: 'monthly' }
 const TTL_MS = 5 * 60 * 1000 // 5 minutos
 
 // Cache em memória
@@ -125,6 +139,7 @@ let memCacheMacom: { value: MacomDiscountConfig; expiresAt: number } | null = nu
 let memCacheInad: { value: InadimplenciaConfig; expiresAt: number } | null = null
 let memCachePaymentNotes: { value: PaymentNotesConfig; expiresAt: number } | null = null
 let memCacheNovoPaymentNotes: { value: PaymentNotesConfig; expiresAt: number } | null = null
+let memCacheSeriesAnnual: { value: SeriesAnnualValuesConfig; expiresAt: number } | null = null
 
 function now() {
   return Date.now()
@@ -142,6 +157,11 @@ function clamp(n: number, min: number, max: number): number {
 function parseBooleanLike(v: unknown): boolean {
   const s = String(v ?? '').trim().toLowerCase()
   return s === 'true' || s === '1' || s === 'yes' || s === 'on'
+}
+
+function parseInputMode(v: unknown): 'annual' | 'monthly' {
+  const s = String(v ?? 'monthly').trim().toLowerCase()
+  return s === 'annual' ? 'annual' : 'monthly'
 }
 
 function readLS(): { value: SuggestedDiscountCapConfig; expiresAt: number } | null {
@@ -1141,4 +1161,120 @@ export function primeNovomatriculaPaymentNotesConfigCache(value: Partial<Payment
   const expiresAt = now() + ttlMs
   memCacheNovoPaymentNotes = { value: v, expiresAt }
   writeLSNovoPaymentNotes(v, ttlMs)
+}
+
+// =============================
+// Séries — Valores Anuais (config)
+// =============================
+
+function readLSSeriesAnnual(): { value: SeriesAnnualValuesConfig; expiresAt: number } | null {
+  try {
+    if (!hasWindow()) return null
+    const raw = localStorage.getItem(LS_KEYS.seriesAnnualValues)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    if (typeof parsed.expiresAt !== 'number' || !parsed.value) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeLSSeriesAnnual(value: SeriesAnnualValuesConfig, ttlMs = TTL_MS) {
+  try {
+    if (!hasWindow()) return
+    const payload = JSON.stringify({ value, expiresAt: now() + ttlMs })
+    localStorage.setItem(LS_KEYS.seriesAnnualValues, payload)
+  } catch {
+    // noop
+  }
+}
+
+function removeLSSeriesAnnual() {
+  try {
+    if (!hasWindow()) return
+    localStorage.removeItem(LS_KEYS.seriesAnnualValues)
+  } catch {
+    // noop
+  }
+}
+
+async function fetchSeriesAnnualValuesConfigFromServer(): Promise<SeriesAnnualValuesConfig | null> {
+  try {
+    const [enabledRes, modeRes] = await Promise.all([
+      supabase.rpc('get_system_config', { config_key: SERIES_ANNUAL_KEYS.enabled }),
+      supabase.rpc('get_system_config', { config_key: SERIES_ANNUAL_KEYS.inputMode }),
+    ])
+
+    if (enabledRes.error) {
+      console.warn('[config.service] get_system_config error (series.annual_values.enabled):', enabledRes.error)
+    }
+    if (modeRes.error) {
+      console.warn('[config.service] get_system_config error (series.annual_values.input_mode):', modeRes.error)
+    }
+
+    const enabled = parseBooleanLike(enabledRes.data ?? SERIES_ANNUAL_DEFAULTS.enabled)
+    const inputMode = parseInputMode(modeRes.data ?? SERIES_ANNUAL_DEFAULTS.inputMode)
+    return { enabled, inputMode }
+  } catch (err) {
+    console.error('[config.service] fetchSeriesAnnualValuesConfigFromServer failed:', err)
+    return null
+  }
+}
+
+export async function getSeriesAnnualValuesConfig(options?: { forceRefresh?: boolean }): Promise<SeriesAnnualValuesConfig> {
+  const force = !!options?.forceRefresh
+
+  // 1) memória
+  if (!force && memCacheSeriesAnnual && !isExpired(memCacheSeriesAnnual.expiresAt)) {
+    return memCacheSeriesAnnual.value
+  }
+
+  // 2) localStorage
+  if (!force) {
+    const ls = readLSSeriesAnnual()
+    if (ls && !isExpired(ls.expiresAt)) {
+      memCacheSeriesAnnual = { value: ls.value, expiresAt: ls.expiresAt }
+      return ls.value
+    }
+  }
+
+  // 3) servidor
+  const remote = await fetchSeriesAnnualValuesConfigFromServer()
+  if (remote) {
+    const expiresAt = now() + TTL_MS
+    memCacheSeriesAnnual = { value: remote, expiresAt }
+    writeLSSeriesAnnual(remote, TTL_MS)
+    return remote
+  }
+
+  // 4) fallback suave a LS expirado
+  const lsExpired = readLSSeriesAnnual()
+  if (lsExpired && lsExpired.value) {
+    const fallback = lsExpired.value
+    const expiresAt = now() + 30 * 1000
+    memCacheSeriesAnnual = { value: fallback, expiresAt }
+    return fallback
+  }
+
+  // 5) defaults
+  const expiresAt = now() + 30 * 1000
+  memCacheSeriesAnnual = { value: SERIES_ANNUAL_DEFAULTS, expiresAt }
+  return SERIES_ANNUAL_DEFAULTS
+}
+
+export function invalidateSeriesAnnualValuesConfigCache() {
+  memCacheSeriesAnnual = null
+  removeLSSeriesAnnual()
+}
+
+export function primeSeriesAnnualValuesConfigCache(value: Partial<SeriesAnnualValuesConfig>, ttlMs = TTL_MS) {
+  const v: SeriesAnnualValuesConfig = {
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : SERIES_ANNUAL_DEFAULTS.enabled,
+    inputMode: value.inputMode === 'annual' ? 'annual' : SERIES_ANNUAL_DEFAULTS.inputMode,
+  }
+  const expiresAt = now() + ttlMs
+  memCacheSeriesAnnual = { value: v, expiresAt }
+  writeLSSeriesAnnual(v, ttlMs)
 }

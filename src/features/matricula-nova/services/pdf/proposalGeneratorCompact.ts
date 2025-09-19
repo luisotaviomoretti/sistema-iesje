@@ -3,6 +3,7 @@ import 'jspdf-autotable'
 import { PDFTemplatesCompact, PDF_CONFIG_COMPACT, type ProposalDataCompact } from './pdfTemplatesCompact'
 import type { EnrollmentFormData } from '../../types/forms'
 import type { PricingCalculation } from '../../types/business'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
 
 export interface ProposalData {
   formData: EnrollmentFormData
@@ -52,8 +53,13 @@ export class ProposalGeneratorCompact {
     try {
       console.log('[ProposalGeneratorCompact] Iniciando geração do PDF compacto')
       
+      // F4 — Toggle: Valores Anuais
+      const annualCfg = await getSeriesAnnualValuesConfig()
+
       // Validar e limpar dados
       const cleanData = this.sanitizeData(data)
+      // Propagar flag anual para o template
+      cleanData.annualModeEnabled = Boolean(annualCfg?.enabled)
       
       // Gerar PDF compacto
       this.templates.generateProposal(cleanData)
@@ -186,6 +192,10 @@ export class ProposalGeneratorCompact {
         }
       })()
     }
+
+    // O sinalizador anual será definido no generateProposal após fetch do config
+    // mas deixamos o campo existir no objeto
+    sanitizedData.annualModeEnabled = Boolean((data as any).annualModeEnabled)
 
     // Adicionar cálculo de desconto percentual se não existir
     if (sanitizedData.pricing && !sanitizedData.pricing.discountPercent) {

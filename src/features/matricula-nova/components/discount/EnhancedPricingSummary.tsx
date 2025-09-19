@@ -1,4 +1,7 @@
 import React from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
+
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -33,6 +36,15 @@ export function EnhancedPricingSummary({
   className
 }: EnhancedPricingSummaryProps) {
   
+  // Feature flag — Séries: Valores Anuais
+  const { data: annualCfg } = useQuery({
+    queryKey: ['series-annual-values-config'],
+    queryFn: async () => getSeriesAnnualValuesConfig(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
+  const annualEnabled = Boolean(annualCfg?.enabled)
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -42,6 +54,23 @@ export function EnhancedPricingSummary({
 
   const formatPercentage = (value: number) => {
     return `${value.toFixed(1)}%`
+  }
+
+  // Helpers — Totais Anuais (com fallback x12 a partir dos mensais)
+  const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
+  const toNum = (v: unknown): number | null => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  const getAnnualValues = (sd: any | null | undefined) => {
+    const mensalSem = toNum(sd?.valor_mensal_sem_material) ?? 0
+    const mensalMat = toNum(sd?.valor_material) ?? 0
+    const mensalCom = toNum(sd?.valor_mensal_com_material) ?? (mensalSem + mensalMat)
+
+    const annualBase = round2(mensalSem * 12)
+    const annualMaterial = round2(mensalMat * 12)
+    const annualTotal = round2(mensalCom * 12)
+    return { annualBase, annualMaterial, annualTotal }
   }
 
   if (isLoading) {
@@ -93,6 +122,7 @@ export function EnhancedPricingSummary({
   const descontoSobreSemMaterial = (valorMensalSemMaterial * pricing.totalDiscountPercentage) / 100
   const mensalidadeFinalSemMaterial = valorMensalSemMaterial - descontoSobreSemMaterial
   const mensalidadeFinalComMaterial = mensalidadeFinalSemMaterial + valorMaterial
+  const economiaAnual = descontoSobreSemMaterial * 12
 
   // Debug logs para verificar cálculos
   if (process.env.NODE_ENV === 'development' && pricing.discounts.length > 0) {
@@ -136,46 +166,48 @@ export function EnhancedPricingSummary({
           )}
         </div>
 
-        {/* Valores Base */}
-        <div className="space-y-3 mb-4">
-          <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            <Info className="w-4 h-4" />
-            Valores Base da Série
-          </h4>
-          
-          {/* Valor com Material */}
-          <div className="flex items-center justify-between p-3 bg-white rounded border">
-            <div className="flex items-center space-x-2">
-              <Package className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-gray-900">Mensalidade com material</span>
+        {/* Valores Base (ocultar em modo anual) */}
+        {!annualEnabled && (
+          <div className="space-y-3 mb-4">
+            <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Info className="w-4 h-4" />
+              Valores Base da Série
+            </h4>
+            
+            {/* Valor com Material */}
+            <div className="flex items-center justify-between p-3 bg-white rounded border">
+              <div className="flex items-center space-x-2">
+                <Package className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-gray-900">Mensalidade com material</span>
+              </div>
+              <span className="font-semibold text-gray-900">
+                {formatCurrency(valorMensalComMaterial)}
+              </span>
             </div>
-            <span className="font-semibold text-gray-900">
-              {formatCurrency(valorMensalComMaterial)}
-            </span>
-          </div>
 
-          {/* Valor do Material */}
-          <div className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
-            <div className="flex items-center space-x-2 ml-4">
-              <BookOpen className="w-3 h-3 text-blue-500" />
-              <span className="text-xs text-blue-700">Material didático incluso</span>
+            {/* Valor do Material */}
+            <div className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
+              <div className="flex items-center space-x-2 ml-4">
+                <BookOpen className="w-3 h-3 text-blue-500" />
+                <span className="text-xs text-blue-700">Material didático incluso</span>
+              </div>
+              <span className="text-sm font-medium text-blue-700">
+                {formatCurrency(valorMaterial)}
+              </span>
             </div>
-            <span className="text-sm font-medium text-blue-700">
-              {formatCurrency(valorMaterial)}
-            </span>
-          </div>
 
-          {/* Valor sem Material */}
-          <div className="flex items-center justify-between p-3 bg-white rounded border">
-            <div className="flex items-center space-x-2">
-              <DollarSign className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-medium text-gray-900">Mensalidade sem material</span>
+            {/* Valor sem Material */}
+            <div className="flex items-center justify-between p-3 bg-white rounded border">
+              <div className="flex items-center space-x-2">
+                <DollarSign className="w-4 h-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-900">Mensalidade sem material</span>
+              </div>
+              <span className="font-semibold text-gray-900">
+                {formatCurrency(valorMensalSemMaterial)}
+              </span>
             </div>
-            <span className="font-semibold text-gray-900">
-              {formatCurrency(valorMensalSemMaterial)}
-            </span>
           </div>
-        </div>
+        )}
 
         {/* Desconto Aplicado */}
         {pricing.totalDiscountValue > 0 && (
@@ -198,7 +230,7 @@ export function EnhancedPricingSummary({
                   </div>
                 </div>
                 <span className="font-semibold text-green-700">
-                  -{formatCurrency(descontoSobreSemMaterial)}
+                  -{formatCurrency(annualEnabled ? economiaAnual : descontoSobreSemMaterial)}
                 </span>
               </div>
 
@@ -208,6 +240,7 @@ export function EnhancedPricingSummary({
                   {pricing.discounts.map((discount, index) => {
                     // CORREÇÃO: Calcular desconto sobre valor SEM material ao invés de usar discount.value
                     const descontoIndividual = (valorMensalSemMaterial * discount.percentage) / 100
+                    const descontoRender = annualEnabled ? (descontoIndividual * 12) : descontoIndividual
                     
                     return (
                       <div key={index} className="flex items-center justify-between text-xs">
@@ -215,7 +248,7 @@ export function EnhancedPricingSummary({
                           • {discount.name} ({formatPercentage(discount.percentage)})
                         </span>
                         <span className="font-medium text-green-600">
-                          -{formatCurrency(descontoIndividual)}
+                          -{formatCurrency(descontoRender)}
                         </span>
                       </div>
                     )
@@ -228,56 +261,58 @@ export function EnhancedPricingSummary({
 
         <Separator className="my-4" />
 
-        {/* Valores Finais */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-gray-700">Valores Finais</h4>
-          
-          {/* Mensalidade sem material */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <BookOpen className="w-5 h-5 text-orange-600" />
+        {/* Valores Finais (ocultar em modo anual) */}
+        {!annualEnabled && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-gray-700">Valores Finais</h4>
+            
+            {/* Mensalidade sem material */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <BookOpen className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <span className="font-semibold text-orange-900">
+                    Mensalidade final (sem material)
+                  </span>
+                  <p className="text-xs text-orange-700">
+                    Opção sem material didático
+                  </p>
+                </div>
               </div>
-              <div>
-                <span className="font-semibold text-orange-900">
-                  Mensalidade final (sem material)
-                </span>
-                <p className="text-xs text-orange-700">
-                  Opção sem material didático
-                </p>
+              <div className="text-right">
+                <div className="text-xl font-bold text-orange-900">
+                  {formatCurrency(mensalidadeFinalSemMaterial)}
+                </div>
+                <div className="text-xs text-orange-700">por mês</div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-xl font-bold text-orange-900">
-                {formatCurrency(mensalidadeFinalSemMaterial)}
-              </div>
-              <div className="text-xs text-orange-700">por mês</div>
-            </div>
-          </div>
 
-          {/* Mensalidade com material */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg border-2 border-blue-300 shadow-sm">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
-                <CreditCard className="w-5 h-5 text-white" />
+            {/* Mensalidade com material */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg border-2 border-blue-300 shadow-sm">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
+                  <CreditCard className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <span className="font-semibold text-blue-900 text-lg">
+                    Mensalidade final (com material)
+                  </span>
+                  <p className="text-xs text-blue-700">
+                    Inclui material didático completo
+                  </p>
+                </div>
               </div>
-              <div>
-                <span className="font-semibold text-blue-900 text-lg">
-                  Mensalidade final (com material)
-                </span>
-                <p className="text-xs text-blue-700">
-                  Inclui material didático completo
-                </p>
+              <div className="text-right">
+                <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  {formatCurrency(mensalidadeFinalComMaterial)}
+                </div>
+                <div className="text-sm text-blue-700">por mês</div>
               </div>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                {formatCurrency(mensalidadeFinalComMaterial)}
-              </div>
-              <div className="text-sm text-blue-700">por mês</div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Informação de economia */}
         {pricing.totalDiscountValue > 0 && (
@@ -287,8 +322,17 @@ export function EnhancedPricingSummary({
               <div className="text-green-800">
                 <p className="font-medium text-sm">Economia aplicada com sucesso!</p>
                 <p className="text-xs text-green-700 mt-1">
-                  Você economiza <strong>{formatCurrency(descontoSobreSemMaterial)}</strong> por mês
-                  ({formatPercentage(pricing.totalDiscountPercentage)} de desconto).
+                  {annualEnabled ? (
+                    <>
+                      Você economiza <strong>{formatCurrency(economiaAnual)}</strong> por ano
+                      ({formatPercentage(pricing.totalDiscountPercentage)} de desconto).
+                    </>
+                  ) : (
+                    <>
+                      Você economiza <strong>{formatCurrency(descontoSobreSemMaterial)}</strong> por mês
+                      ({formatPercentage(pricing.totalDiscountPercentage)} de desconto).
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -299,8 +343,16 @@ export function EnhancedPricingSummary({
         <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
           <p className="text-blue-700">
             <Info className="w-3 h-3 inline mr-1" />
-            <strong>Nota:</strong> Os descontos são aplicados sobre o valor da mensalidade sem material. 
-            O valor do material didático ({formatCurrency(valorMaterial)}) é fixo.
+            <strong>Nota:</strong> Os descontos são aplicados sobre o valor {annualEnabled ? 'anual' : 'da mensalidade'} sem material. 
+            {annualEnabled ? (
+              <>
+                O valor do material didático anual ({formatCurrency(getAnnualValues(seriesData as any).annualMaterial)}) é fixo.
+              </>
+            ) : (
+              <>
+                O valor do material didático ({formatCurrency(valorMaterial)}) é fixo.
+              </>
+            )}
           </p>
         </div>
       </div>

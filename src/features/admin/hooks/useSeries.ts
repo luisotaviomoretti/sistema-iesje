@@ -9,11 +9,30 @@ export interface Serie {
   valor_mensal_com_material: number
   valor_material: number
   valor_mensal_sem_material: number
+  // Novos campos (F1): valores anuais no banco
+  valor_anual_com_material?: number | null
+  valor_anual_material?: number | null
+  valor_anual_sem_material?: number | null
   ordem: number
   escola: 'Sete de Setembro' | 'Pelicano'
   ativo: boolean
   created_at: string
   updated_at: string
+}
+
+// Helpers de normalização (Supabase pode devolver NUMERIC como string)
+function toNumOrNull(v: any): number | null {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+function normalizeAnnualFields<T extends Record<string, any>>(row: T): T {
+  return {
+    ...row,
+    valor_anual_com_material: toNumOrNull((row as any).valor_anual_com_material),
+    valor_anual_material: toNumOrNull((row as any).valor_anual_material),
+    valor_anual_sem_material: toNumOrNull((row as any).valor_anual_sem_material),
+  }
 }
 
 // Hook para buscar todas as séries
@@ -38,7 +57,8 @@ export const useSeries = (includeInactive = false) => {
         throw new Error(error.message)
       }
 
-      return data || []
+      const rows = (data || []) as any[]
+      return rows.map((r) => normalizeAnnualFields(r))
     },
     staleTime: 2 * 60 * 1000, // 2 minutos
   })
@@ -232,7 +252,8 @@ export const usePublicSeries = (escola?: EscolaType, includeInactive = false) =>
         throw new Error(error.message)
       }
 
-      return data || []
+      const rows = (data || []) as any[]
+      return rows.map((r) => normalizeAnnualFields(r))
     },
     staleTime: 5 * 60 * 1000, // 5 minutos - cache mais longo para uso público
     gcTime: 10 * 60 * 1000, // 10 minutos no cache

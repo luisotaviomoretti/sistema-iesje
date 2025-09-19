@@ -151,6 +151,9 @@ export function AcademicProgressionSection({
   // Turnos disponíveis para o trilho selecionado
   const availableShifts = selectedTrack?.available_shifts || ['morning', 'afternoon', 'evening']
   
+  // UI flag: ocultar badge de sugestão de série (não disruptivo)
+  const SHOW_SERIES_SUGGESTION = false
+  
   return (
     <Card className={className}>
       <CardHeader>
@@ -191,7 +194,7 @@ export function AcademicProgressionSection({
             <Label htmlFor="series-select" className="text-base">
               Nova Série *
             </Label>
-            {suggestedSeries && suggestedSeries.id !== selectedSeriesId && (
+            {suggestedSeries && suggestedSeries.id !== selectedSeriesId && SHOW_SERIES_SUGGESTION && (
               <Badge variant="secondary" className="text-xs">
                 Sugestão: {suggestedSeries.nome}
               </Badge>

@@ -1,4 +1,6 @@
 import React from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -44,6 +46,15 @@ export function FinancialBreakdownCard({
   readOnlyMode = true
 }: FinancialBreakdownCardProps) {
   
+  // Feature flag — Séries: Valores Anuais
+  const { data: annualCfg } = useQuery({
+    queryKey: ['series-annual-values-config'],
+    queryFn: async () => getSeriesAnnualValuesConfig(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
+  const annualEnabled = Boolean(annualCfg?.enabled)
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -53,6 +64,33 @@ export function FinancialBreakdownCard({
 
   const formatPercentage = (value: number) => {
     return `${value.toFixed(1)}%`
+  }
+
+  // Helpers F4 — Totais Anuais (usar campos anuais do banco quando disponíveis, senão x12)
+  const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
+  const toNum = (v: unknown): number | null => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  const getAnnualValues = (sd: any | null | undefined) => {
+    const mensalSem = toNum(sd?.valor_mensal_sem_material) ?? 0
+    const mensalMat = toNum(sd?.valor_material) ?? 0
+    const mensalCom = toNum(sd?.valor_mensal_com_material) ?? (mensalSem + mensalMat)
+
+    const dbAnualSem = toNum(sd?.valor_anual_sem_material)
+    const dbAnualMat = toNum(sd?.valor_anual_material)
+    const dbAnualCom = toNum(sd?.valor_anual_com_material)
+
+    const derivedSem = round2(mensalSem * 12)
+    const derivedMat = round2(mensalMat * 12)
+    const derivedCom = round2(mensalCom * 12)
+
+    const useDb = [dbAnualSem, dbAnualMat, dbAnualCom].some(v => typeof v === 'number')
+    const annualBase = round2(dbAnualSem ?? derivedSem)
+    const annualMaterial = round2(dbAnualMat ?? derivedMat)
+    const annualTotal = round2(dbAnualCom ?? (annualBase + annualMaterial))
+
+    return { annualBase, annualMaterial, annualTotal, source: useDb ? 'banco' : 'x12 (derivado)' as 'banco' | 'x12 (derivado)' }
   }
 
   if (isLoading) {
@@ -157,48 +195,75 @@ export function FinancialBreakdownCard({
         </div>
 
         {/* Valores Base */}
-        <div className="space-y-3 mb-4">
-          <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            <Info className="w-4 h-4" />
-            Valores Base da Série
-          </h4>
-          
-          {/* Valor com Material */}
-          <div className="flex items-center justify-between p-4 bg-white rounded-lg border shadow-sm">
-            <div className="flex items-center space-x-2">
-              <Package className="w-5 h-5 text-blue-600" />
-              <div>
-                <span className="font-medium text-gray-900">Mensalidade com material</span>
-                <p className="text-xs text-gray-600">Valor completo da série</p>
-              </div>
-            </div>
-            <span className="font-bold text-lg text-gray-900">
-              {formatCurrency(valorMensalComMaterial)}
-            </span>
-          </div>
-
-          {/* Breakdown: Mensalidade + Material */}
-          <div className="ml-4 space-y-2">
-            <div className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-200">
-              <div className="flex items-center space-x-2">
-                <BookOpen className="w-4 h-4 text-blue-500" />
-                <span className="text-sm text-blue-700">Material didático</span>
-              </div>
-              <span className="text-sm font-semibold text-blue-700">
-                {formatCurrency(valorMaterial)}
-              </span>
-            </div>
+        {!annualEnabled && (
+          <div className="space-y-3 mb-4">
+            <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Info className="w-4 h-4" />
+              Valores Base da Série
+            </h4>
             
-            <div className="flex items-center justify-between p-3 bg-white rounded border">
+            {/* Valor com Material (mensal) */}
+            <div className="flex items-center justify-between p-4 bg-white rounded-lg border shadow-sm">
               <div className="flex items-center space-x-2">
-                <DollarSign className="w-4 h-4 text-gray-600" />
-                <span className="text-sm text-gray-700">Mensalidade sem material</span>
+                <Package className="w-5 h-5 text-blue-600" />
+                <div>
+                  <span className="font-medium text-gray-900">Mensalidade com material</span>
+                  <p className="text-xs text-gray-600">Valor completo da série</p>
+                </div>
               </div>
-              <span className="text-sm font-semibold text-gray-900">
-                {formatCurrency(valorMensalSemMaterial)}
+              <span className="font-bold text-lg text-gray-900">
+                {formatCurrency(valorMensalComMaterial)}
               </span>
             </div>
+
+            {/* Breakdown: Mensalidade + Material (mensal) */}
+            <div className="ml-4 space-y-2">
+              <div className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-200">
+                <div className="flex items-center space-x-2">
+                  <BookOpen className="w-4 h-4 text-blue-500" />
+                  <span className="text-sm text-blue-700">Material didático</span>
+                </div>
+                <span className="text-sm font-semibold text-blue-700">
+                  {formatCurrency(valorMaterial)}
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-white rounded border">
+                <div className="flex items-center space-x-2">
+                  <DollarSign className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm text-gray-700">Mensalidade sem material</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900">
+                  {formatCurrency(valorMensalSemMaterial)}
+                </span>
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* Totais Anuais (sem desconto) */}
+        <div className="space-y-3 mb-4">
+          <h4 className="text-sm font-semibold text-gray-700">📅 Totais Anuais (sem desconto)</h4>
+          {(() => {
+            const annual = getAnnualValues(seriesData as any)
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg bg-white border">
+                  <div className="text-xs text-gray-600 mb-1">Anual sem material</div>
+                  <div className="font-medium">{formatCurrency(annual.annualBase)}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-white border">
+                  <div className="text-xs text-gray-600 mb-1">Anual material</div>
+                  <div className="font-medium">{formatCurrency(annual.annualMaterial)}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-white border-2">
+                  <div className="text-xs text-gray-600 mb-1">Anual com material</div>
+                  <div className="font-semibold">{formatCurrency(annual.annualTotal)}</div>
+                </div>
+              </div>
+            )
+          })()}
+          <div className="text-[10px] text-gray-500">Fonte: {getAnnualValues(seriesData as any).source}</div>
         </div>
 
         {/* Desconto Aplicado */}
@@ -251,59 +316,61 @@ export function FinancialBreakdownCard({
 
         <Separator className="my-4" />
 
-        {/* Valores Finais */}
-        <div className="space-y-3 mb-4">
-          <h4 className="text-sm font-semibold text-gray-700">💳 Valores Finais</h4>
-          
-          {/* Mensalidade sem material */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <BookOpen className="w-5 h-5 text-orange-600" />
+        {/* Valores Finais (somente quando não estiver em modo anual) */}
+        {!annualEnabled && (
+          <div className="space-y-3 mb-4">
+            <h4 className="text-sm font-semibold text-gray-700">💳 Valores Finais</h4>
+            
+            {/* Mensalidade sem material */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <BookOpen className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <span className="font-semibold text-orange-900">
+                    Opção sem material
+                  </span>
+                  <p className="text-xs text-orange-700">
+                    Mensalidade com desconto aplicado
+                  </p>
+                </div>
               </div>
-              <div>
-                <span className="font-semibold text-orange-900">
-                  Opção sem material
-                </span>
-                <p className="text-xs text-orange-700">
-                  Mensalidade com desconto aplicado
-                </p>
+              <div className="text-right">
+                <div className="text-xl font-bold text-orange-900">
+                  {formatCurrency(mensalidadeFinalSemMaterial)}
+                </div>
+                <div className="text-xs text-orange-700">por mês</div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-xl font-bold text-orange-900">
-                {formatCurrency(mensalidadeFinalSemMaterial)}
-              </div>
-              <div className="text-xs text-orange-700">por mês</div>
-            </div>
-          </div>
 
-          {/* Mensalidade com material - PRINCIPAL */}
-          <div className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl border-2 border-blue-300 shadow-lg">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl">
-                <CreditCard className="w-6 h-6 text-white" />
+            {/* Mensalidade com material - PRINCIPAL */}
+            <div className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl border-2 border-blue-300 shadow-lg">
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl">
+                  <CreditCard className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <span className="font-bold text-blue-900 text-xl">
+                    Mensalidade Final
+                  </span>
+                  <p className="text-sm text-blue-700 font-medium">
+                    Inclui material didático completo
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    ⭐ Valor para pagamento mensal
+                  </p>
+                </div>
               </div>
-              <div>
-                <span className="font-bold text-blue-900 text-xl">
-                  Mensalidade Final
-                </span>
-                <p className="text-sm text-blue-700 font-medium">
-                  Inclui material didático completo
-                </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  ⭐ Valor para pagamento mensal
-                </p>
+              <div className="text-right">
+                <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  {formatCurrency(mensalidadeFinalComMaterial)}
+                </div>
+                <div className="text-sm text-blue-700 font-medium">mensais</div>
               </div>
-            </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                {formatCurrency(mensalidadeFinalComMaterial)}
-              </div>
-              <div className="text-sm text-blue-700 font-medium">mensais</div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Economia Destacada */}
         {pricing.totalDiscountValue > 0 && (
@@ -313,9 +380,11 @@ export function FinancialBreakdownCard({
               <div className="text-green-800 flex-1">
                 <p className="font-semibold text-sm mb-1">🎉 Economia Aplicada com Sucesso!</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="font-medium">Por mês:</span> {formatCurrency(descontoSobreSemMaterial)}
-                  </div>
+                  {!annualEnabled && (
+                    <div>
+                      <span className="font-medium">Por mês:</span> {formatCurrency(descontoSobreSemMaterial)}
+                    </div>
+                  )}
                   <div>
                     <span className="font-medium">Por ano:</span> {formatCurrency(economiaAnual)}
                   </div>
@@ -356,9 +425,9 @@ export function FinancialBreakdownCard({
         <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
           <p className="text-blue-700">
             <Info className="w-3 h-3 inline mr-1" />
-            <strong>Importante:</strong> Os descontos são aplicados exclusivamente sobre o valor da mensalidade 
-            sem material ({formatCurrency(valorMensalSemMaterial)}). 
-            O valor do material didático ({formatCurrency(valorMaterial)}) permanece fixo e não sofre desconto.
+            <strong>Importante:</strong> Os descontos são aplicados exclusivamente sobre o valor {annualEnabled ? 'anual' : 'da mensalidade'} 
+            sem material ({annualEnabled ? formatCurrency(getAnnualValues(seriesData as any).annualBase) : formatCurrency(valorMensalSemMaterial)}). 
+            O valor do material didático ({annualEnabled ? formatCurrency(getAnnualValues(seriesData as any).annualMaterial) : formatCurrency(valorMaterial)}) permanece fixo e não sofre desconto.
           </p>
         </div>
 

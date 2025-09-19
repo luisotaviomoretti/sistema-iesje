@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { RematriculaPricingService } from './rematriculaPricingService'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
 import { isMacomTrack } from '../utils/track'
 import type { RematriculaReadModel } from '../types/details'
 
@@ -22,6 +23,8 @@ export interface BuildPayloadInput {
   // F3 — Observações da Forma de Pagamento (flag + valor opcional)
   paymentNotesEnabled?: boolean
   paymentNotes?: string
+  // F5 — Payloads: incluir campos anuais informativos quando habilitado
+  includeAnnualFields?: boolean
 }
 
 export interface BuildPayloadOutput {
@@ -56,7 +59,7 @@ function toDateOnly(value?: string | null): string | null {
 }
 
 export const RematriculaSubmissionService = {
-  buildPayload({ readModel, series, discounts, shift, currentUser, destinationSchoolFormValue, suggestedPercentageOverride, paymentNotesEnabled, paymentNotes }: BuildPayloadInput): BuildPayloadOutput {
+  buildPayload({ readModel, series, discounts, shift, currentUser, destinationSchoolFormValue, suggestedPercentageOverride, paymentNotesEnabled, paymentNotes, includeAnnualFields }: BuildPayloadInput): BuildPayloadOutput {
     const student = readModel.student || ({} as any)
     const guardians = readModel.guardians || ({} as any)
     const address = readModel.address || ({} as any)
@@ -200,6 +203,16 @@ export const RematriculaSubmissionService = {
       // tag_matricula derivada no servidor (trigger BEFORE INSERT)
     }
 
+    // F5 — Campos anuais informativos (não obrigatórios no servidor)
+    if (includeAnnualFields && series) {
+      try {
+        const annual = RematriculaPricingService.getAnnualValues(series)
+        p_enrollment.annual_base_value = annual.annualBase
+        p_enrollment.annual_material_value = annual.annualMaterial
+        p_enrollment.annual_total_value = annual.annualTotal
+      } catch {}
+    }
+
     // F3 — Incluir observações de pagamento, quando habilitado e preenchido (sanitização leve no cliente)
     if (paymentNotesEnabled) {
       const raw = (paymentNotes || '').toString()
@@ -228,7 +241,14 @@ export const RematriculaSubmissionService = {
   },
 
   async finalizeRematricula(input: BuildPayloadInput): Promise<string> {
-    const { p_enrollment, p_discounts, client_tx_id } = this.buildPayload(input)
+    // Obter flag anual com cache e fallback seguro
+    let includeAnnual = false
+    try {
+      const cfg = await getSeriesAnnualValuesConfig()
+      includeAnnual = Boolean(cfg?.enabled)
+    } catch {}
+
+    const { p_enrollment, p_discounts, client_tx_id } = this.buildPayload({ ...input, includeAnnualFields: includeAnnual })
     try {
       // DEV-only debug: confirmar payload com CAP aplicado
       if ((import.meta as any)?.env?.DEV) {

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
 import type { EnrollmentFormData } from '../../types/forms'
 import type { DatabaseEnrollment, ApiResponse } from '../../types/api'
 import type { PricingCalculation } from '../../types/business'
@@ -140,6 +141,24 @@ export class EnrollmentApiService {
 
     // Monta payload conforme contrato da RPC
     const enrollmentPayload = this.mapFormToDatabaseFull(formData, pricing, seriesInfo, trackInfo, currentUser) as any
+
+    // F5 — Payloads: anexar campos anuais informativos quando habilitado (servidor ignora chaves extras)
+    try {
+      const cfg = await getSeriesAnnualValuesConfig()
+      if (cfg?.enabled) {
+        const monthlyBase = Number(seriesInfo?.valor_mensal_sem_material) || Number(pricing?.baseValue) || 0
+        const monthlyMaterial = Number(seriesInfo?.valor_material) || 0
+        const monthlyTotal = Number(seriesInfo?.valor_mensal_com_material) || (monthlyBase + monthlyMaterial)
+
+        const annualBase = Number(seriesInfo?.valor_anual_sem_material) || (monthlyBase * 12)
+        const annualMaterial = Number(seriesInfo?.valor_anual_material) || (monthlyMaterial * 12)
+        const annualTotal = Number(seriesInfo?.valor_anual_com_material) || (annualBase + annualMaterial)
+
+        enrollmentPayload.annual_base_value = Math.round(annualBase * 100) / 100
+        enrollmentPayload.annual_material_value = Math.round(annualMaterial * 100) / 100
+        enrollmentPayload.annual_total_value = Math.round(annualTotal * 100) / 100
+      }
+    } catch {}
 
     // Opcional: incluir payment_notes no payload quando feature flag estiver ativa e houver conteúdo.
     // Sanitização leve no cliente (servidor é a fonte da verdade):

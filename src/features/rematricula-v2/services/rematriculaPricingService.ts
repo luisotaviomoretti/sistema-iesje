@@ -16,6 +16,44 @@ import type {
  */
 export class RematriculaPricingService {
   
+  // =============================
+  // F4 — Helpers de Valores Anuais (sem desconto)
+  // =============================
+  private static round2(n: number): number {
+    return Math.round((Number(n) + Number.EPSILON) * 100) / 100
+  }
+
+  private static toNum(v: unknown): number | null {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+
+  /**
+   * Retorna trio anual (sem desconto) da série, com fallback seguro x12
+   * - annualBase: anual sem material
+   * - annualMaterial: anual material
+   * - annualTotal: anual com material
+   */
+  static getAnnualValues(series: any): { annualBase: number; annualMaterial: number; annualTotal: number; source: 'db' | 'derived' } {
+    const monthlyBase = this.toNum(series?.valor_mensal_sem_material) ?? 0
+    const monthlyMat = this.toNum(series?.valor_material) ?? 0
+    const monthlyTotal = this.toNum(series?.valor_mensal_com_material) ?? (monthlyBase + monthlyMat)
+
+    const dbAnnualBase = this.toNum(series?.valor_anual_sem_material)
+    const dbAnnualMat = this.toNum(series?.valor_anual_material)
+    const dbAnnualTotal = this.toNum(series?.valor_anual_com_material)
+
+    const derivedBase = this.round2(monthlyBase * 12)
+    const derivedMat = this.round2(monthlyMat * 12)
+    const derivedTotal = this.round2(monthlyTotal * 12)
+
+    const useDb = [dbAnnualBase, dbAnnualMat, dbAnnualTotal].some((v) => typeof v === 'number')
+    const annualBase = this.round2((dbAnnualBase ?? derivedBase))
+    const annualMaterial = this.round2((dbAnnualMat ?? derivedMat))
+    const annualTotal = this.round2((dbAnnualTotal ?? (annualBase + annualMaterial)))
+
+    return { annualBase, annualMaterial, annualTotal, source: useDb ? 'db' : 'derived' }
+  }
   // Limite máximo de desconto cumulativo
   private static readonly MAX_DISCOUNT_PERCENTAGE = 101
   private static readonly MAX_DISCOUNT_INTEGRAL = 100

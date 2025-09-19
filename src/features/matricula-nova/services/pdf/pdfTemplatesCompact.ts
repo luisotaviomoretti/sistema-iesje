@@ -53,6 +53,8 @@ export interface ProposalDataCompact {
   approvalInfo?: any
   // F4 — Observações (opcional)
   paymentNotes?: string
+  // F4 — Toggle de exibição anual
+  annualModeEnabled?: boolean
 }
 
 export class PDFTemplatesCompact {
@@ -346,13 +348,40 @@ export class PDFTemplatesCompact {
     // Percentual e valor absoluto do desconto
     const descontoPercentual = pricing.totalDiscountPercentage || 0
     const descontoValor = descontoSobreSemMaterial
+    const isAnnual = !!data.annualModeEnabled
+    const descontoAnual = descontoValor * 12
+
+    // Totais Anuais (sem desconto) — calcular também aqui para usar no modo anual
+    const toNumEarly = (v: any) => {
+      const n = Number(v)
+      return Number.isFinite(n) ? n : null
+    }
+    const round2Early = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
+
+    const dbAnualSemEarly = toNumEarly((seriesInfo as any)?.valor_anual_sem_material)
+    const dbAnualMatEarly = toNumEarly((seriesInfo as any)?.valor_anual_material)
+    const dbAnualComEarly = toNumEarly((seriesInfo as any)?.valor_anual_com_material)
+
+    const derivedSemEarly = round2Early(valorMensalSemMaterial * 12)
+    const derivedMatEarly = round2Early(valorMaterial * 12)
+    const derivedComEarly = round2Early(valorMensalComMaterial * 12)
+
+    const annualBaseEarly = round2Early(dbAnualSemEarly ?? derivedSemEarly)
+    const annualMatEarly = round2Early(dbAnualMatEarly ?? derivedMatEarly)
+    const annualComEarly = round2Early(dbAnualComEarly ?? (annualBaseEarly + annualMatEarly))
 
     // Tabela com fundo cinza claro
-    const tableData = [
-      ['Valor sem material:', this.formatCurrency(valorMensalSemMaterial)],
-      ['Valor com material:', this.formatCurrency(valorMensalComMaterial)],
-      ['Desconto aplicado:', `${descontoPercentual.toFixed(1)}% (${this.formatCurrency(descontoValor)})`]
-    ]
+    const tableData = isAnnual
+      ? [
+          ['Anual sem material:', this.formatCurrency(annualBaseEarly)],
+          ['Anual com material:', this.formatCurrency(annualComEarly)],
+          ['Desconto aplicado (anual):', `${descontoPercentual.toFixed(1)}% (${this.formatCurrency(descontoAnual)})`]
+        ]
+      : [
+          ['Valor sem material:', this.formatCurrency(valorMensalSemMaterial)],
+          ['Valor com material:', this.formatCurrency(valorMensalComMaterial)],
+          ['Desconto aplicado:', `${descontoPercentual.toFixed(1)}% (${this.formatCurrency(descontoValor)})`]
+        ]
 
     // Desenhar tabela com fundo
     const startX = LAYOUT_COMPACT.margins.left
@@ -392,7 +421,48 @@ export class PDFTemplatesCompact {
 
     this.currentY = startY + tableHeight + 8
 
-    // VALOR FINAL MENSAL em destaque
+    // Totais Anuais (sem desconto) — usar campos anuais do banco quando existirem; caso contrário, x12
+    const toNum = (v: any) => {
+      const n = Number(v)
+      return Number.isFinite(n) ? n : null
+    }
+    const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
+
+    const dbAnualSem = toNum((seriesInfo as any)?.valor_anual_sem_material)
+    const dbAnualMat = toNum((seriesInfo as any)?.valor_anual_material)
+    const dbAnualCom = toNum((seriesInfo as any)?.valor_anual_com_material)
+
+    const derivedSem = round2(valorMensalSemMaterial * 12)
+    const derivedMat = round2(valorMaterial * 12)
+    const derivedCom = round2(valorMensalComMaterial * 12)
+
+    const useDb = [dbAnualSem, dbAnualMat, dbAnualCom].some(v => typeof v === 'number')
+    const annualBase = round2(dbAnualSem ?? derivedSem)
+    const annualMat = round2(dbAnualMat ?? derivedMat)
+    const annualCom = round2(dbAnualCom ?? (annualBase + annualMat))
+
+    autoTable(this.doc, {
+      startY: this.currentY,
+      head: [['Totais Anuais (sem desconto)', 'Valor']],
+      body: [
+        ['Anual sem material', this.formatCurrency(annualBase)],
+        ['Anual material', this.formatCurrency(annualMat)],
+        ['Anual com material', this.formatCurrency(annualCom)],
+      ],
+      margin: { left: LAYOUT_COMPACT.margins.left, right: LAYOUT_COMPACT.margins.right },
+      styles: { fontSize: 8, cellPadding: 2, lineColor: COLORS_COMPACT.borderGray, lineWidth: 0.2 },
+      headStyles: { fillColor: COLORS_COMPACT.lightGray, textColor: COLORS_COMPACT.text, fontStyle: 'bold' },
+      columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 40, halign: 'right' } },
+    })
+
+    this.currentY = (this.doc as any).lastAutoTable.finalY + 3
+    this.doc.setTextColor(COLORS_COMPACT.mediumGray)
+    this.doc.setFont('helvetica', 'normal')
+    this.doc.setFontSize(TYPOGRAPHY_COMPACT.small.size)
+    this.doc.text(`Fonte: ${useDb ? 'banco' : 'x12 (derivado)'}`, LAYOUT_COMPACT.margins.left, this.currentY)
+    this.currentY += 5
+
+    // VALOR FINAL (mensal/anual) em destaque
     const finalBoxHeight = 12
     const finalBoxY = this.currentY
 
@@ -406,8 +476,10 @@ export class PDFTemplatesCompact {
     this.doc.setFontSize(14) // Maior destaque
     this.doc.setTextColor(COLORS_COMPACT.primary)
     
-    const finalText = 'VALOR FINAL MENSAL:'
-    const finalValue2 = this.formatCurrency(mensalidadeFinalComMaterial)
+    const finalText = isAnnual ? 'VALOR FINAL ANUAL:' : 'VALOR FINAL MENSAL:'
+    const finalAnnualSem = mensalidadeFinalSemMaterial * 12
+    const finalAnnualCom = finalAnnualSem + annualMatEarly
+    const finalValue2 = this.formatCurrency(isAnnual ? finalAnnualCom : mensalidadeFinalComMaterial)
     const fullText = `${finalText} ${finalValue2}`
     
     // Centralizar horizontalmente

@@ -1,4 +1,6 @@
 import React, { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -42,6 +44,14 @@ export default function FinancialBreakdownCard({
   className,
   capInfo
 }: FinancialBreakdownCardProps) {
+  // Feature flag — Séries: Valores Anuais
+  const { data: annualCfg } = useQuery({
+    queryKey: ['series-annual-values-config'],
+    queryFn: async () => getSeriesAnnualValuesConfig(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
+  const annualEnabled = Boolean(annualCfg?.enabled)
   
   const formatCurrency = (value: number | null | undefined) => {
     if (value == null) return 'R$ 0,00'
@@ -108,6 +118,15 @@ export default function FinancialBreakdownCard({
       return null
     }
   }, [series, discounts, suggestedPercentage])
+
+  // Desconto nominal para exibição deve ser calculado sobre a base ANUAL (sem material)
+  const annualDiscountValue = useMemo(() => {
+    if (!series || !pricing) return 0
+    const annual = RematriculaPricingService.getAnnualValues(series)
+    const pct = Number(pricing.totalDiscountPercentage) || 0
+    const value = (annual.annualBase * pct) / 100
+    return Math.round((value + Number.EPSILON) * 100) / 100
+  }, [series, pricing])
 
   // Calcular comparação com ano anterior
   const comparison = useMemo(() => {
@@ -208,36 +227,38 @@ export default function FinancialBreakdownCard({
             </AlertDescription>
           </Alert>
         )}
-        {/* Valores Base */}
-        <div className="space-y-3">
-          <div className="text-sm font-medium text-muted-foreground">Valores Base</div>
-          
-          <div className="space-y-2">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Mensalidade (sem material)</span>
-              </div>
-              <span className="font-medium">{formatCurrency(pricing.baseValue)}</span>
-            </div>
+        {/* Valores Base (exibir apenas no modo mensal) */}
+        {!annualEnabled && (
+          <div className="space-y-3">
+            <div className="text-sm font-medium text-muted-foreground">Valores Base</div>
             
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Material didático</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Mensalidade (sem material)</span>
+                </div>
+                <span className="font-medium">{formatCurrency(pricing.baseValue)}</span>
               </div>
-              <span className="font-medium">{formatCurrency(pricing.materialValue)}</span>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 rounded-lg border-2 border-muted">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                <span className="text-sm font-medium">Total sem desconto</span>
+              
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Material didático</span>
+                </div>
+                <span className="font-medium">{formatCurrency(pricing.materialValue)}</span>
               </div>
-              <span className="font-semibold">{formatCurrency(pricing.totalValue)}</span>
+              
+              <div className="flex items-center justify-between p-3 rounded-lg border-2 border-muted">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  <span className="text-sm font-medium">Total sem desconto</span>
+                </div>
+                <span className="font-semibold">{formatCurrency(pricing.totalValue)}</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Descontos Aplicados */}
         {hasDiscount && (
@@ -254,7 +275,7 @@ export default function FinancialBreakdownCard({
                   </div>
                   <div className="text-right">
                     <div className="font-semibold text-green-900">
-                      {formatCurrency(pricing.totalDiscountValue)}
+                      {formatCurrency(annualDiscountValue)}
                     </div>
                     <div className="text-xs text-green-700">
                       {formatPercentage(pricing.totalDiscountPercentage)}
@@ -275,29 +296,59 @@ export default function FinancialBreakdownCard({
           </>
         )}
 
-        {/* Valor Final */}
-        <Separator />
-        <div className="space-y-3">
-          <div className="text-sm font-medium text-muted-foreground">Valor Final</div>
-          
-          <div className="p-4 rounded-lg bg-primary/5 border-2 border-primary/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-primary" />
-                <span className="font-medium">Mensalidade com desconto</span>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-primary">
-                  {formatCurrency(pricing.finalMonthlyValue)}
-                </div>
-                {hasDiscount && (
-                  <div className="text-xs text-muted-foreground">
-                    Economia de {formatCurrency(pricing.totalDiscountValue)}
+        {/* Valor Final (somente no modo mensal) */}
+        {!annualEnabled && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div className="text-sm font-medium text-muted-foreground">Valor Final</div>
+              
+              <div className="p-4 rounded-lg bg-primary/5 border-2 border-primary/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-primary" />
+                    <span className="font-medium">Mensalidade com desconto</span>
                   </div>
-                )}
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-primary">
+                      {formatCurrency(pricing.finalMonthlyValue)}
+                    </div>
+                    {hasDiscount && (
+                      <div className="text-xs text-muted-foreground">
+                        Economia de {formatCurrency(annualDiscountValue)}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </>
+        )}
+
+        {/* Totais Anuais (sem desconto) */}
+        <Separator />
+        <div className="space-y-3">
+          <div className="text-sm font-medium text-muted-foreground">Totais Anuais (sem desconto)</div>
+          {(() => {
+            const annual = RematriculaPricingService.getAnnualValues(series)
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <div className="text-xs text-muted-foreground mb-1">Anual sem material</div>
+                  <div className="font-medium">{formatCurrency(annual.annualBase)}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <div className="text-xs text-muted-foreground mb-1">Anual material</div>
+                  <div className="font-medium">{formatCurrency(annual.annualMaterial)}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50 border-2 border-muted">
+                  <div className="text-xs text-muted-foreground mb-1">Anual com material</div>
+                  <div className="font-semibold">{formatCurrency(annual.annualTotal)}</div>
+                </div>
+              </div>
+            )
+          })()}
+          <div className="text-[10px] text-muted-foreground">Fonte: {RematriculaPricingService.getAnnualValues(series).source === 'db' ? 'banco' : 'x12 (derivado)'}</div>
         </div>
 
         {/* Comparação com Ano Anterior */}
@@ -328,21 +379,19 @@ export default function FinancialBreakdownCard({
                 comparison.isSame && "bg-gray-50 border-gray-200"
               )}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {comparison.isIncrease && <TrendingUp className="h-4 w-4 text-red-600" />}
-                    {comparison.isDecrease && <TrendingDown className="h-4 w-4 text-green-600" />}
-                    {comparison.isSame && <Minus className="h-4 w-4 text-gray-600" />}
-                    <span className={cn(
-                      "text-sm",
-                      comparison.isIncrease && "text-red-900",
-                      comparison.isDecrease && "text-green-900",
-                      comparison.isSame && "text-gray-900"
-                    )}>
-                      {comparison.isIncrease && "Aumento"}
-                      {comparison.isDecrease && "Redução"}
-                      {comparison.isSame && "Sem alteração"}
-                    </span>
-                  </div>
+                  {comparison.isIncrease && <TrendingUp className="h-4 w-4 text-red-600" />}
+                  {comparison.isDecrease && <TrendingDown className="h-4 w-4 text-green-600" />}
+                  {comparison.isSame && <Minus className="h-4 w-4 text-gray-600" />}
+                  <span className={cn(
+                    "text-sm",
+                    comparison.isIncrease && "text-red-900",
+                    comparison.isDecrease && "text-green-900",
+                    comparison.isSame && "text-gray-900"
+                  )}>
+                    {comparison.isIncrease && "Aumento"}
+                    {comparison.isDecrease && "Redução"}
+                    {comparison.isSame && "Sem alteração"}
+                  </span>
                   <div className="text-right">
                     <div className={cn(
                       "font-semibold",

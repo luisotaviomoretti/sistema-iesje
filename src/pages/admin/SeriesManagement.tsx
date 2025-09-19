@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -61,6 +62,7 @@ import {
 } from '@/features/admin/hooks/useSeries'
 import { useAdminPermissions } from '@/features/admin/hooks/useAdminAuth'
 import { SerieForm } from '@/features/admin/components/SerieForm'
+import { usePublicSystemConfig } from '@/features/admin/hooks/useSystemConfigs'
 
 const SeriesManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -75,6 +77,26 @@ const SeriesManagement = () => {
   const { data: series, isLoading } = useSeries(true) // incluir inativos
   const deleteMutation = useDeleteSerie()
   const activateMutation = useActivateSerie()
+
+  // Feature Flag — Séries: Valores Anuais (F2)
+  const { data: seriesAnnualEnabledPublic } = usePublicSystemConfig('series.annual_values.enabled')
+  const { data: seriesAnnualModePublic } = usePublicSystemConfig('series.annual_values.input_mode')
+  const [seriesAnnualEnabled, setSeriesAnnualEnabled] = useState(false)
+  const [seriesAnnualMode, setSeriesAnnualMode] = useState<'annual' | 'monthly'>('monthly')
+
+  useEffect(() => {
+    if (seriesAnnualEnabledPublic != null) {
+      const v = String(seriesAnnualEnabledPublic).trim().toLowerCase()
+      setSeriesAnnualEnabled(v === 'true' || v === '1' || v === 'yes' || v === 'on')
+    }
+  }, [seriesAnnualEnabledPublic])
+
+  useEffect(() => {
+    if (seriesAnnualModePublic != null) {
+      const s = String(seriesAnnualModePublic).trim().toLowerCase()
+      setSeriesAnnualMode(s === 'annual' ? 'annual' : 'monthly')
+    }
+  }, [seriesAnnualModePublic])
 
   // Filtrar séries baseado na busca e escola
   const filteredSeries = series?.filter(serie => {
@@ -303,13 +325,33 @@ const SeriesManagement = () => {
                     </TableCell>
                     <TableCell>
                       <span className="font-bold text-green-700">
-                        {formatCurrency(calculateAnnualValue(serie.valor_mensal_com_material))}
+                        {formatCurrency(
+                          seriesAnnualEnabled
+                            ? (typeof serie.valor_anual_com_material === 'number'
+                                ? serie.valor_anual_com_material
+                                : calculateAnnualValue(serie.valor_mensal_com_material))
+                            : calculateAnnualValue(serie.valor_mensal_com_material)
+                        )}
                       </span>
+                      {seriesAnnualEnabled && typeof serie.valor_anual_com_material === 'number' &&
+                        Math.abs(serie.valor_anual_com_material - calculateAnnualValue(serie.valor_mensal_com_material)) > 0.01 && (
+                          <span className="ml-2 text-xs text-amber-600">≠ x12</span>
+                        )}
                     </TableCell>
                     <TableCell>
                       <span className="font-bold">
-                        {formatCurrency(calculateAnnualValue(serie.valor_mensal_sem_material))}
+                        {formatCurrency(
+                          seriesAnnualEnabled
+                            ? (typeof serie.valor_anual_sem_material === 'number'
+                                ? serie.valor_anual_sem_material
+                                : calculateAnnualValue(serie.valor_mensal_sem_material))
+                            : calculateAnnualValue(serie.valor_mensal_sem_material)
+                        )}
                       </span>
+                      {seriesAnnualEnabled && typeof serie.valor_anual_sem_material === 'number' &&
+                        Math.abs(serie.valor_anual_sem_material - calculateAnnualValue(serie.valor_mensal_sem_material)) > 0.01 && (
+                          <span className="ml-2 text-xs text-amber-600">≠ x12</span>
+                        )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={serie.ativo ? "default" : "secondary"}>
@@ -387,6 +429,7 @@ const SeriesManagement = () => {
       {viewingSerie && (
         <ViewSerieDialog
           serie={viewingSerie}
+          seriesAnnualEnabled={seriesAnnualEnabled}
           onClose={() => setViewingSerie(null)}
         />
       )}
@@ -419,7 +462,7 @@ const SeriesManagement = () => {
 }
 
 // Component for viewing serie details
-const ViewSerieDialog = ({ serie, onClose }: { serie: Serie; onClose: () => void }) => {
+const ViewSerieDialog = ({ serie, seriesAnnualEnabled, onClose }: { serie: Serie; seriesAnnualEnabled: boolean; onClose: () => void }) => {
   return (
     <AlertDialog open={true} onOpenChange={onClose}>
       <AlertDialogContent className="max-w-2xl">
@@ -478,19 +521,39 @@ const ViewSerieDialog = ({ serie, onClose }: { serie: Serie; onClose: () => void
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="font-medium mb-3">Valores Anuais (x12)</h4>
+            <h4 className="font-medium mb-3">Valores Anuais</h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 bg-green-100 rounded">
                 <label className="text-sm font-medium text-green-800">Com Material</label>
                 <p className="text-xl font-bold text-green-800">
-                  {formatCurrency(calculateAnnualValue(serie.valor_mensal_com_material))}
+                  {formatCurrency(
+                    seriesAnnualEnabled
+                      ? (typeof serie.valor_anual_com_material === 'number'
+                          ? serie.valor_anual_com_material
+                          : calculateAnnualValue(serie.valor_mensal_com_material))
+                      : calculateAnnualValue(serie.valor_mensal_com_material)
+                  )}
                 </p>
+                {seriesAnnualEnabled && typeof serie.valor_anual_com_material === 'number' &&
+                  Math.abs(serie.valor_anual_com_material - calculateAnnualValue(serie.valor_mensal_com_material)) > 0.01 && (
+                    <p className="mt-1 text-xs text-amber-700">Difere de x12</p>
+                  )}
               </div>
               <div className="text-center p-4 bg-gray-100 rounded">
                 <label className="text-sm font-medium text-gray-800">Sem Material</label>
                 <p className="text-xl font-bold text-gray-800">
-                  {formatCurrency(calculateAnnualValue(serie.valor_mensal_sem_material))}
+                  {formatCurrency(
+                    seriesAnnualEnabled
+                      ? (typeof serie.valor_anual_sem_material === 'number'
+                          ? serie.valor_anual_sem_material
+                          : calculateAnnualValue(serie.valor_mensal_sem_material))
+                      : calculateAnnualValue(serie.valor_mensal_sem_material)
+                  )}
                 </p>
+                {seriesAnnualEnabled && typeof serie.valor_anual_sem_material === 'number' &&
+                  Math.abs(serie.valor_anual_sem_material - calculateAnnualValue(serie.valor_mensal_sem_material)) > 0.01 && (
+                    <p className="mt-1 text-xs text-amber-700">Difere de x12</p>
+                  )}
               </div>
             </div>
           </div>

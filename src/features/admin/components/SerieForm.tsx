@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -42,6 +43,7 @@ import {
   type Serie
 } from '@/features/admin/hooks/useSeries'
 import { toast } from 'sonner'
+import { usePublicSystemConfig } from '@/features/admin/hooks/useSystemConfigs'
 
 const serieSchema = z.object({
   nome: z.string()
@@ -59,6 +61,10 @@ const serieSchema = z.object({
   valor_mensal_sem_material: z.number()
     .min(0, 'Valor deve ser maior ou igual a 0')
     .max(999999.99, 'Valor muito alto'),
+  // Campos anuais (opcionais durante a transição)
+  valor_anual_com_material: z.number().min(0, 'Valor anual inválido').max(99999999.99, 'Valor muito alto').optional(),
+  valor_anual_material: z.number().min(0, 'Valor anual inválido').max(99999999.99, 'Valor muito alto').optional(),
+  valor_anual_sem_material: z.number().min(0, 'Valor anual inválido').max(99999999.99, 'Valor muito alto').optional(),
   ordem: z.number()
     .min(1, 'Ordem deve ser maior que 0')
     .max(99, 'Ordem deve ser menor que 100'),
@@ -101,11 +107,36 @@ export const SerieForm = ({ serie, onClose }: SerieFormProps) => {
       valor_mensal_com_material: 0,
       valor_material: 0,
       valor_mensal_sem_material: 0,
+      valor_anual_com_material: undefined,
+      valor_anual_material: undefined,
+      valor_anual_sem_material: undefined,
       ordem: 1,
       escola: 'Sete de Setembro',
       ativo: true,
     },
   })
+
+  // Flags públicas — Séries: Valores Anuais
+  const { data: seriesAnnualEnabledPublic } = usePublicSystemConfig('series.annual_values.enabled')
+  const { data: seriesAnnualModePublic } = usePublicSystemConfig('series.annual_values.input_mode')
+  const [seriesAnnualEnabled, setSeriesAnnualEnabled] = useState(false)
+  const [seriesAnnualMode, setSeriesAnnualMode] = useState<'annual' | 'monthly'>('monthly')
+
+  useEffect(() => {
+    if (seriesAnnualEnabledPublic != null) {
+      const v = String(seriesAnnualEnabledPublic).trim().toLowerCase()
+      setSeriesAnnualEnabled(v === 'true' || v === '1' || v === 'yes' || v === 'on')
+    }
+  }, [seriesAnnualEnabledPublic])
+  useEffect(() => {
+    if (seriesAnnualModePublic != null) {
+      const s = String(seriesAnnualModePublic).trim().toLowerCase()
+      setSeriesAnnualMode(s === 'annual' ? 'annual' : 'monthly')
+    }
+  }, [seriesAnnualModePublic])
+
+  // Utilitário de arredondamento half-up para 2 casas
+  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
   // Preencher form se estiver editando
   useEffect(() => {
@@ -116,6 +147,9 @@ export const SerieForm = ({ serie, onClose }: SerieFormProps) => {
         valor_mensal_com_material: serie.valor_mensal_com_material,
         valor_material: serie.valor_material,
         valor_mensal_sem_material: serie.valor_mensal_sem_material,
+        valor_anual_com_material: typeof serie.valor_anual_com_material === 'number' ? serie.valor_anual_com_material : round2(serie.valor_mensal_com_material * 12),
+        valor_anual_material: typeof serie.valor_anual_material === 'number' ? serie.valor_anual_material : round2(serie.valor_material * 12),
+        valor_anual_sem_material: typeof serie.valor_anual_sem_material === 'number' ? serie.valor_anual_sem_material : round2(serie.valor_mensal_sem_material * 12),
         ordem: serie.ordem,
         escola: serie.escola,
         ativo: serie.ativo,
@@ -127,6 +161,9 @@ export const SerieForm = ({ serie, onClose }: SerieFormProps) => {
   const valorComMaterial = form.watch('valor_mensal_com_material')
   const valorMaterial = form.watch('valor_material')
   const valorSemMaterial = form.watch('valor_mensal_sem_material')
+  const anualCom = form.watch('valor_anual_com_material')
+  const anualMaterial = form.watch('valor_anual_material')
+  const anualSem = form.watch('valor_anual_sem_material')
 
   // Auto-calcular valor sem material quando os outros valores mudarem
   useEffect(() => {
@@ -138,16 +175,84 @@ export const SerieForm = ({ serie, onClose }: SerieFormProps) => {
     }
   }, [valorComMaterial, valorMaterial, form])
 
+  // Auto-cálculo anual sem material quando os outros mudarem (modo anual)
+  useEffect(() => {
+    if (seriesAnnualEnabled && seriesAnnualMode === 'annual') {
+      const ac = typeof anualCom === 'number' ? anualCom : 0
+      const am = typeof anualMaterial === 'number' ? anualMaterial : 0
+      const calc = ac - am
+      if (calc >= 0 && calc !== anualSem) {
+        form.setValue('valor_anual_sem_material', calc, { shouldValidate: true })
+      }
+    }
+  }, [seriesAnnualEnabled, seriesAnnualMode, anualCom, anualMaterial, form])
+
+  // Em modo anual, manter campos mensais derivados dos anuais (para validação e consistência visual)
+  useEffect(() => {
+    if (seriesAnnualEnabled && seriesAnnualMode === 'annual') {
+      const ac = typeof anualCom === 'number' ? anualCom : 0
+      const am = typeof anualMaterial === 'number' ? anualMaterial : 0
+      const as = typeof anualSem === 'number' ? anualSem : Math.max(0, ac - am)
+      const mensalCom = round2(ac / 12)
+      const mensalMat = round2(am / 12)
+      const mensalSem = round2(as / 12)
+      form.setValue('valor_mensal_com_material', mensalCom, { shouldValidate: true })
+      form.setValue('valor_material', mensalMat, { shouldValidate: true })
+      form.setValue('valor_mensal_sem_material', mensalSem, { shouldValidate: true })
+    }
+  }, [seriesAnnualEnabled, seriesAnnualMode, anualCom, anualMaterial, anualSem, form])
+
   const onSubmit = async (data: SerieFormData) => {
     try {
+      // Se flag ativa e modo anual: derivar mensais a partir dos anuais
+      let payload: Partial<Serie> & { id?: string }
+      if (seriesAnnualEnabled && seriesAnnualMode === 'annual') {
+        const annualCom = Number(data.valor_anual_com_material ?? 0)
+        const annualMat = Number(data.valor_anual_material ?? 0)
+        const annualSem = Number(data.valor_anual_sem_material ?? Math.max(0, annualCom - annualMat))
+
+        const mensalCom = round2(annualCom / 12)
+        const mensalMat = round2(annualMat / 12)
+        const mensalSem = round2(annualSem / 12)
+
+        payload = {
+          nome: data.nome,
+          ano_serie: data.ano_serie,
+          valor_mensal_com_material: mensalCom,
+          valor_material: mensalMat,
+          valor_mensal_sem_material: mensalSem,
+          valor_anual_com_material: annualCom,
+          valor_anual_material: annualMat,
+          valor_anual_sem_material: annualSem,
+          ordem: data.ordem,
+          escola: data.escola,
+          ativo: data.ativo,
+        }
+      } else {
+        // Modo legado (monthly): manter comportamento atual e preencher anuais (x12) para consistência
+        const annualCom = round2(data.valor_mensal_com_material * 12)
+        const annualMat = round2(data.valor_material * 12)
+        const annualSem = round2(data.valor_mensal_sem_material * 12)
+        payload = {
+          nome: data.nome,
+          ano_serie: data.ano_serie,
+          valor_mensal_com_material: data.valor_mensal_com_material,
+          valor_material: data.valor_material,
+          valor_mensal_sem_material: data.valor_mensal_sem_material,
+          valor_anual_com_material: annualCom,
+          valor_anual_material: annualMat,
+          valor_anual_sem_material: annualSem,
+          ordem: data.ordem,
+          escola: data.escola,
+          ativo: data.ativo,
+        }
+      }
+
       if (isEditing) {
-        await updateMutation.mutateAsync({
-          id: serie!.id,
-          ...data,
-        })
+        await updateMutation.mutateAsync({ id: serie!.id, ...payload })
         toast.success('Série atualizada com sucesso!')
       } else {
-        await createMutation.mutateAsync(data)
+        await createMutation.mutateAsync(payload as any)
         toast.success('Série criada com sucesso!')
       }
       onClose()
@@ -316,12 +421,14 @@ export const SerieForm = ({ serie, onClose }: SerieFormProps) => {
                 </CardContent>
               </Card>
 
-              {/* Valores Mensais */}
+              {/* Valores Mensais e/ou Anuais (gated por flag) */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <Calculator className="h-4 w-4" />
-                    <span>Valores Mensais</span>
+                    <span>
+                      {seriesAnnualEnabled && seriesAnnualMode === 'annual' ? 'Valores Mensais (derivados)' : 'Valores Mensais'}
+                    </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -344,6 +451,7 @@ export const SerieForm = ({ serie, onClose }: SerieFormProps) => {
                               onChange={(e) => {
                                 field.onChange(parseInputValue(e.target.value))
                               }}
+                              disabled={seriesAnnualEnabled && seriesAnnualMode === 'annual'}
                             />
                           </div>
                         </FormControl>
@@ -371,6 +479,7 @@ export const SerieForm = ({ serie, onClose }: SerieFormProps) => {
                               onChange={(e) => {
                                 field.onChange(parseInputValue(e.target.value))
                               }}
+                              disabled={seriesAnnualEnabled && seriesAnnualMode === 'annual'}
                             />
                           </div>
                         </FormControl>
@@ -401,6 +510,7 @@ export const SerieForm = ({ serie, onClose }: SerieFormProps) => {
                               onChange={(e) => {
                                 field.onChange(parseInputValue(e.target.value))
                               }}
+                              disabled={seriesAnnualEnabled && seriesAnnualMode === 'annual'}
                             />
                           </div>
                         </FormControl>
@@ -413,6 +523,99 @@ export const SerieForm = ({ serie, onClose }: SerieFormProps) => {
                   />
                 </CardContent>
               </Card>
+
+              {seriesAnnualEnabled && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Calculator className="h-4 w-4" />
+                      <span>{seriesAnnualMode === 'annual' ? 'Valores Anuais' : 'Valores Anuais (derivados)'}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="valor_anual_com_material"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Valor Anual c/ Material</FormLabel>
+                          <FormControl>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-muted-foreground">R$</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0,00"
+                                {...field}
+                                value={formatInputValue(field.value as any)}
+                                onChange={(e) => field.onChange(parseInputValue(e.target.value))}
+                                disabled={seriesAnnualMode !== 'annual'}
+                              />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="valor_anual_material"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Valor Anual do Material</FormLabel>
+                          <FormControl>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-muted-foreground">R$</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0,00"
+                                {...field}
+                                value={formatInputValue(field.value as any)}
+                                onChange={(e) => field.onChange(parseInputValue(e.target.value))}
+                                disabled={seriesAnnualMode !== 'annual'}
+                              />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="valor_anual_sem_material"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Valor Anual s/ Material</FormLabel>
+                          <FormControl>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-muted-foreground">R$</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0,00"
+                                {...field}
+                                value={formatInputValue(field.value as any)}
+                                onChange={(e) => field.onChange(parseInputValue(e.target.value))}
+                                disabled={seriesAnnualMode !== 'annual'}
+                              />
+                            </div>
+                          </FormControl>
+                          <FormDescription>
+                            {seriesAnnualMode === 'annual' ? 'Calculado automaticamente: Com material - Material' : 'Derivado de Mensal x12'}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Resumo Anual */}
