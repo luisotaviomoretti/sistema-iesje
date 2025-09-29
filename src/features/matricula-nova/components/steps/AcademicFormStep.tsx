@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Controller } from 'react-hook-form'
 import { GraduationCap, Clock, School } from 'lucide-react'
 
@@ -10,6 +11,7 @@ import { ValidationFeedback } from '../ui/ValidationFeedback'
 import { StepNavigation } from '../ui/StepNavigation'
 import { TOTAL_STEPS } from '../../constants/steps'
 import { PricingCard } from '../ui/PricingCard'
+import { getSeriesAnnualValuesConfig } from '@/lib/config/config.service'
 
 // Types
 import type { StepProps } from '../../types/forms'
@@ -35,7 +37,7 @@ export default function AcademicFormStep(props: StepProps) {
     canGoPrev, 
     currentStep,
     isLoadingData
-  } = props
+  } = props as any
 
   // Watch escola selecionada do Step 1
   const studentData = form.watch('student')
@@ -57,29 +59,63 @@ export default function AcademicFormStep(props: StepProps) {
     { value: 'night', label: 'Noite (19:00 - 22:30)' }
   ]
 
-  // Opções de série formatadas com preço
+  // Feature flag — Séries: Valores Anuais
+  const { data: annualCfg } = useQuery({
+    queryKey: ['series-annual-values-config'],
+    queryFn: async () => getSeriesAnnualValuesConfig(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
+  const annualEnabled = Boolean(annualCfg?.enabled)
+
+  // Helpers para calcular valores anuais a partir dos mensais quando necessário
+  const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
+  const toNum = (v: unknown): number | null => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+
+  // Opções de série formatadas com preço (mensal ou anual)
   const seriesOptions = useMemo(() => {
     console.log('🏷️ [AcademicFormStep] Gerando seriesOptions para:', series.length, 'séries')
     
     const options = series.map(s => {
-      const valor = (s as any).valor_mensal_com_material || s.value || 0
+      const sd: any = s as any
+      const mensalCom = toNum(sd.valor_mensal_com_material) ?? toNum(sd.value) ?? 0
+      const mensalSem = toNum(sd.valor_mensal_sem_material) ?? Math.max(0, mensalCom - (toNum(sd.valor_material) ?? 0))
+      const matMensal = toNum(sd.valor_material) ?? Math.max(0, mensalCom - mensalSem)
+
+      // Preferir campos anuais do banco se existirem; fallback = x12
+      const anualCom = toNum(sd.valor_anual_com_material)
+      const anualSem = toNum(sd.valor_anual_sem_material)
+      const anualMat = toNum(sd.valor_anual_material)
+
+      const valorLabel = annualEnabled
+        ? (anualCom ?? round2(mensalCom * 12))
+        : mensalCom
+
       console.log('💰 [AcademicFormStep] Série processada:', {
         id: s.id,
         nome: s.nome,
-        valor_original: s.value,
-        valor_admin: (s as any).valor_mensal_com_material,
-        valor_final: valor
+        mensal_com: mensalCom,
+        mensal_sem: mensalSem,
+        mensal_mat: matMensal,
+        anual_com_db: anualCom,
+        anual_sem_db: anualSem,
+        anual_mat_db: anualMat,
+        valor_final_dropdown: valorLabel,
+        annualEnabled
       })
       
       return {
         value: s.id,
-        label: `${s.nome} - R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        label: `${s.nome} - R$ ${valorLabel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ${annualEnabled ? '(anual c/ material)' : '(c/ material)'}`
       }
     })
     
     console.log('✅ [AcademicFormStep] Options geradas:', options)
     return options
-  }, [series])
+  }, [series, annualEnabled])
 
   // Removido: seleção de trilho neste passo (feito no próximo passo)
 
@@ -188,16 +224,28 @@ export default function AcademicFormStep(props: StepProps) {
       </div>
 
       {/* Preview da Série Selecionada com PricingCard */}
-      {selectedSeries && (
-        <PricingCard
-          valorComMaterial={(selectedSeries as any).valor_mensal_com_material || selectedSeries.value || 0}
-          valorSemMaterial={(selectedSeries as any).valor_mensal_sem_material}
-          valorMaterial={(selectedSeries as any).valor_material}
-          escola={(selectedSeries as any).escola}
-          serie={selectedSeries.nome}
-          className="mt-6"
-        />
-      )}
+      {selectedSeries && (() => {
+        const sd: any = selectedSeries
+        const mensalCom = toNum(sd.valor_mensal_com_material) ?? toNum(sd.value) ?? 0
+        const mensalSem = toNum(sd.valor_mensal_sem_material) ?? Math.max(0, mensalCom - (toNum(sd.valor_material) ?? 0))
+        const matMensal = toNum(sd.valor_material) ?? Math.max(0, mensalCom - mensalSem)
+
+        const anualCom = toNum(sd.valor_anual_com_material) ?? round2(mensalCom * 12)
+        const anualSem = toNum(sd.valor_anual_sem_material) ?? round2(mensalSem * 12)
+        const anualMat = toNum(sd.valor_anual_material) ?? round2(matMensal * 12)
+
+        return (
+          <PricingCard
+            valorComMaterial={annualEnabled ? anualCom : mensalCom}
+            valorSemMaterial={annualEnabled ? anualSem : mensalSem}
+            valorMaterial={annualEnabled ? anualMat : matMensal}
+            escola={sd.escola}
+            serie={selectedSeries.nome}
+            className="mt-6"
+            annualMode={annualEnabled}
+          />
+        )
+      })()}
 
       {/* Loading state para dados */}
       {isLoadingData && (

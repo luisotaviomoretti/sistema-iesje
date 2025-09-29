@@ -9,6 +9,7 @@ interface PricingCardProps {
   escola?: string
   serie?: string
   className?: string
+  annualMode?: boolean
 }
 
 export function PricingCard({
@@ -17,7 +18,8 @@ export function PricingCard({
   valorMaterial,
   escola,
   serie,
-  className = ""
+  className = "",
+  annualMode = false
 }: PricingCardProps) {
   // Calcular valores se não fornecidos explicitamente
   const valorComMaterialFinal = valorComMaterial || 0
@@ -50,7 +52,7 @@ export function PricingCard({
               </div>
               <div>
                 <span className="font-semibold text-purple-800 text-lg">
-                  Mensalidade Completa
+                  {annualMode ? 'Anuidade Completa' : 'Mensalidade Completa'}
                 </span>
                 <p className="text-xs text-purple-600 mt-1">com material didático</p>
               </div>
@@ -61,7 +63,7 @@ export function PricingCard({
                   minimumFractionDigits: 2 
                 })}
               </p>
-              <p className="text-xs text-purple-600 font-medium">valor mensal</p>
+              <p className="text-xs text-purple-600 font-medium">{annualMode ? 'valor anual' : 'valor mensal'}</p>
             </div>
           </div>
         </div>
@@ -73,14 +75,14 @@ export function PricingCard({
             <span className="text-sm font-medium">Composição do valor:</span>
           </div>
 
-          {/* Mensalidade Base */}
+          {/* Mensalidade/Anuidade Base */}
           <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors duration-200 group">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gray-200 rounded-lg group-hover:bg-gray-300 transition-colors duration-200">
                 <DollarSign className="w-5 h-5 text-gray-600" />
               </div>
               <div>
-                <span className="font-medium text-gray-800">Mensalidade Base</span>
+                <span className="font-medium text-gray-800">{annualMode ? 'Anuidade Base' : 'Mensalidade Base'}</span>
                 <p className="text-xs text-gray-500 mt-1">ensino + estrutura</p>
               </div>
             </div>
@@ -99,7 +101,7 @@ export function PricingCard({
               </div>
               <div>
                 <span className="font-medium text-gray-800">Material Didático</span>
-                <p className="text-xs text-gray-500 mt-1">livros + apostilas</p>
+                <p className="text-xs text-gray-500 mt-1">{annualMode ? 'valor anual • livros + apostilas' : 'livros + apostilas'}</p>
               </div>
             </div>
             <span className="text-lg font-bold text-gray-900 group-hover:text-purple-900 transition-colors duration-200">

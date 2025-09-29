@@ -38,7 +38,11 @@ export function useSeries(escola?: 'pelicano' | 'sete_setembro') {
       escola: serie.escola,
       valor_material: serie.valor_material,
       valor_mensal_sem_material: serie.valor_mensal_sem_material,
-      valor_mensal_com_material: serie.valor_mensal_com_material
+      valor_mensal_com_material: serie.valor_mensal_com_material,
+      // Annual fields (may be null/undefined in some rows)
+      valor_anual_com_material: serie.valor_anual_com_material,
+      valor_anual_material: serie.valor_anual_material,
+      valor_anual_sem_material: serie.valor_anual_sem_material
     } as any))
   }, [filteredData])
 
@@ -86,12 +90,12 @@ export function useAvailableLevels() {
 export function useSeriesFormatted() {
   const { data: allSeries, ...queryProps } = useSeries()
 
-  const seriesByLevel = allSeries?.reduce((acc, serie) => {
+  const seriesByLevel = (allSeries as any[])?.reduce((acc: Record<string, any[]>, serie: any) => {
     const nivel = (serie as any).nivel
     if (!acc[nivel]) acc[nivel] = []
     acc[nivel].push(serie as any)
     return acc
-  }, {} as Record<string, DatabaseSeries[]>)
+  }, {} as Record<string, any[]>)
 
   const seriesOptions: SelectOption[] = (allSeries || []).map((serie: any) => ({
     value: serie.id,

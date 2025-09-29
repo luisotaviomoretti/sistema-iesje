@@ -198,24 +198,7 @@ export default function NovaMatricula() {
               )}
 
               {/* Next/Submit Button */}
-              {enrollment.isLastStep ? (
-                <button
-                  onClick={enrollment.submitForm}
-                  disabled={!enrollment.canSubmit || enrollment.isSubmitting}
-                  className="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {enrollment.isSubmitting ? (
-                    <>
-                      <LoadingSpinner size="small" className="mr-2" />
-                      Criando Matrícula...
-                    </>
-                  ) : (
-                    <>
-                      ✓ Finalizar Matrícula
-                    </>
-                  )}
-                </button>
-              ) : (
+              {!enrollment.isLastStep && (
                 <button
                   onClick={enrollment.nextStep}
                   disabled={!enrollment.canGoNext || enrollment.isSubmitting}
@@ -227,8 +210,8 @@ export default function NovaMatricula() {
             </div>
           </div>
 
-          {/* Pricing Summary (se disponível) */}
-          {enrollment.pricing && enrollment.currentStep !== 4 && (
+          {/* Pricing Summary (se disponível, oculto no último step) */}
+          {enrollment.pricing && enrollment.currentStep !== 4 && !enrollment.isLastStep && (
             <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h3 className="text-lg font-medium text-blue-900 mb-2">
                 💰 Resumo Financeiro
