@@ -151,16 +151,14 @@ export default function RematriculaFinalizeModal({ open, onOpenChange, readModel
             Revise atentamente os dados antes de enviar. Você poderá voltar e editar se necessário.
           </DialogDescription>
         </DialogHeader>
-
         <div className="min-h-0 overflow-y-auto px-6 py-4 space-y-4">
           {!!(errors && errors.length) && (
             <Alert variant="destructive">
               <AlertDescription>
                 Corrija os seguintes problemas antes de enviar:
-                <ul className="list-disc pl-4 mt-2 space-y-1">
-                  {errors.map((e, idx) => (
-                    <li key={idx}>{e}</li>
-                  ))}
+                <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                  <li>• Enviará os dados para processamento</li>
+                  <li>• Gerará o protocolo de matrícula</li>
                 </ul>
               </AlertDescription>
             </Alert>

@@ -168,8 +168,8 @@ export function SummaryActions({
         </Button>
       </div>
 
-      {/* Secondary Actions - Only Email Button */}
-      {onSendEmail && pdfGeneratedLocal && (
+      {/* Secondary Actions - Only Email Button (temporarily hidden) */}
+      {false && onSendEmail && pdfGeneratedLocal && (
         <div className="flex">
           <Button
             onClick={onSendEmail}
