@@ -19,6 +19,7 @@ import { useCepStatistics } from "@/features/admin/hooks/useCepRanges";
 import { useSystemConfigs } from "@/features/admin/hooks/useSystemConfigs";
 import { useAdminAuth } from "@/features/admin/hooks/useAdminAuth";
 import { EnrollmentsAreaChart } from "@/features/admin/components/EnrollmentsAreaChart";
+import { EnrollmentsBySeriesChart } from "@/features/admin/components/EnrollmentsBySeriesChart";
 
 const AdminDashboard = () => {
   console.log('🔥 AdminDashboard rendering...');
@@ -119,6 +120,9 @@ const AdminDashboard = () => {
 
       {/* Matrículas por dia (Shadcn + Recharts) */}
       <EnrollmentsAreaChart />
+
+      {/* Gráfico de Matrículas por Série */}
+      <EnrollmentsBySeriesChart />
 
       {/* Métricas Principais */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

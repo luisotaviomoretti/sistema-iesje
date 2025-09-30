@@ -10,7 +10,7 @@ export interface EnrollmentKpisFilters {
 
 export interface EnrollmentKpisResult {
   count: number
-  annualRevenue: number // soma de annual_base_value
+  annualRevenue: number // soma de annual_total_value
   sumBaseValue: number
   sumTotalDiscountValue: number
   avgDiscountRatio: number // sum(total_discount_value) / sum(base_value) - 0..1
@@ -45,7 +45,7 @@ export function useEnrollmentKpis(filters: EnrollmentKpisFilters) {
         .from("enrollments")
         .select(
           // incluir colunas necessárias; evitamos erro se uma coluna específica não existir usando fallback abaixo
-          "id, created_at, student_escola, tag_matricula, status, annual_base_value, total_discount_value, base_value"
+          "id, created_at, student_escola, tag_matricula, status, annual_total_value, total_discount_value, base_value"
         )
         .gte("created_at", startISO)
         .lte("created_at", endISO)
@@ -68,14 +68,14 @@ export function useEnrollmentKpis(filters: EnrollmentKpisFilters) {
 
       for (const row of data || []) {
         count += 1
-        const annual = Number((row as any).annual_base_value ?? 0)
+        const annual = Number((row as any).annual_total_value ?? 0)
         const base = Number((row as any).base_value ?? 0)
         const disc = Number((row as any).total_discount_value ?? 0)
 
         // segurança contra NaN e negativos
-        annualRevenue += isFinite(annual) && annual > 0 ? annual : 0
-        sumBaseValue += isFinite(base) && base > 0 ? base : 0
-        sumTotalDiscountValue += isFinite(disc) && disc > 0 ? disc : 0
+        annualRevenue += isFinite(annual) && annual >= 0 ? annual : 0
+        sumBaseValue += isFinite(base) && base >= 0 ? base : 0
+        sumTotalDiscountValue += isFinite(disc) && disc >= 0 ? disc : 0
       }
 
       const avgDiscountRatio = sumBaseValue > 0 ? sumTotalDiscountValue / sumBaseValue : 0

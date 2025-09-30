@@ -107,7 +107,7 @@ export function EnrollmentsAreaChart() {
                 ? '-'
                 : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(kpis?.annualRevenue ?? 0)}
             </div>
-            <p className="text-xs text-muted-foreground">Soma de annual_base_value (sem material)</p>
+            <p className="text-xs text-muted-foreground">Soma de annual_total_value (com material)</p>
           </CardContent>
         </Card>
 
