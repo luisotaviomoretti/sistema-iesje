@@ -35,6 +35,7 @@ import { getSuggestedDiscountCap, applySuggestedDiscountCap, invalidateSuggested
 import type { MacomDiscountConfig } from '@/lib/config/config.service'
 import { isMacomTrack } from '../utils/track'
 import { getRematriculaProposalGenerator } from '../services/pdf/rematriculaProposalGenerator'
+import { uploadEnrollmentPdf } from '@/features/matricula-nova/services/pdf/pdfStorage'
 import { RematriculaPDFService } from '../services/rematriculaPDFService'
 import ManualDiscountModal from '../components/modals/ManualDiscountModal'
 import { useCheckInadimplencia } from '../hooks/useInadimplencia'
@@ -589,7 +590,7 @@ export default function RematriculaDetailsPage() {
               paymentNotesEnabled: Boolean(paymentNotesCfg?.enabled),
               paymentNotes,
             })
-            // Gerar PDF (independente; inspirado no fluxo de novo aluno)
+            // Gerar PDF, subir no Storage e salvar URL durável; fazer download local
             try {
               const generator = getRematriculaProposalGenerator()
               const proposalData = {
@@ -599,14 +600,26 @@ export default function RematriculaDetailsPage() {
                 suggestedPercentageOverride: overrideToSend ?? (cappedSuggested ?? null),
                 paymentNotes: Boolean(paymentNotesCfg?.enabled) ? (paymentNotes || undefined) : undefined,
               }
-              const previewUrl = await generator.generatePreviewURL(proposalData)
+              const blob = await generator.generateProposal(proposalData)
               try {
-                await RematriculaPDFService.updatePdfInfo(enrollmentId, previewUrl)
+                const storageUrl = await uploadEnrollmentPdf(enrollmentId, blob)
+                if (storageUrl) {
+                  await RematriculaPDFService.updatePdfInfo(enrollmentId, storageUrl)
+                }
               } catch (err) {
-                console.warn('[Rematricula] Falha ao atualizar PDF na matrícula:', err)
+                console.warn('[Rematricula] Falha ao subir/atualizar URL do PDF:', err)
               }
-              // Download local (opcional, não bloqueante)
-              try { await generator.generateAndDownload(proposalData) } catch {}
+              // Download local (não bloqueante)
+              try {
+                const url = URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                const studentName = (merged?.student?.name || model?.student?.name || 'aluno')
+                link.download = `proposta-rematricula-${studentName.replace(/\s+/g, '-').toLowerCase()}.pdf`
+                document.body.appendChild(link)
+                link.click()
+                setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url) }, 100)
+              } catch {}
             } catch (pdfErr) {
               console.warn('[Rematricula] Geração de PDF falhou (processo seguirá):', pdfErr)
             }

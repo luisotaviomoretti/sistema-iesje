@@ -88,10 +88,20 @@ const EnrollmentsList: React.FC = () => {
       toast.warning('PDF não disponível para esta matrícula')
       return
     }
+    const url = String(e.pdf_url)
+    // Invalid old preview links (e.g., blob:) cannot be opened after refresh
+    if (!/^https?:\/\//i.test(url)) {
+      toast.warning('Link de PDF inválido/expirado. Abra a matrícula e gere o PDF novamente.')
+      return
+    }
     const link = document.createElement('a')
-    link.href = e.pdf_url
+    link.href = url
+    link.target = '_blank'
+    link.rel = 'noopener'
     link.download = `proposta-${(e.student_name || 'aluno').replace(/\s+/g, '-')}.pdf`
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
   }
 
   const onSoftDelete = async (id: string) => {

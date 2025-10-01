@@ -31,7 +31,8 @@ import { DocumentChecklistCard } from '../summary/DocumentChecklistCard'
 const SummaryActions = React.lazy(() => import('../summary/SummaryActions'))
 
 // Import PDF generator Compact - Design compacto em 1 página com resumo financeiro otimizado
-import { generateProposalPDF, generateProposalPreview, type ProposalData } from '../../services/pdf/proposalGeneratorCompact'
+import { generateProposalPDF, generateProposalPreview, generateProposalBlob, type ProposalData } from '../../services/pdf/proposalGeneratorCompact'
+import { uploadEnrollmentPdf } from '../../services/pdf/pdfStorage'
 import { debounce } from '../../utils/pdfHelpers'
 
 // Import document helpers - USANDO HOOK DINÂMICO
@@ -317,16 +318,40 @@ export default function SummaryStep(props: StepProps) {
         paymentNotes: (paymentNotes && paymentNotes.trim().length > 0) ? paymentNotes : undefined
       }
 
-      // 3) Gerar uma URL de preview para salvar no registro
-      const previewUrl = await generateProposalPreview(proposalData)
+      // 3) Gerar blob e subir para Storage; salvar URL durável no registro
+      let pdfBlob: Blob | null = null
       try {
-        await EnrollmentApiService.updatePdfInfo(enrollmentId, previewUrl)
+        pdfBlob = await generateProposalBlob(proposalData)
+        const storageUrl = await uploadEnrollmentPdf(enrollmentId, pdfBlob)
+        if (storageUrl) {
+          await EnrollmentApiService.updatePdfInfo(enrollmentId, storageUrl)
+        }
       } catch (err) {
-        console.warn('Falha ao atualizar PDF na matrícula (seguindo com download):', err)
+        console.warn('Falha ao gerar/subir PDF; seguiremos com download local apenas:', err)
       }
 
-      // 4) Gerar e baixar o PDF (download local)
-      await generateProposalPDF(proposalData)
+      // 4) Download local (usa blob se disponível; senão gera on-demand)
+      try {
+        if (pdfBlob) {
+          const url = URL.createObjectURL(pdfBlob)
+          const link = document.createElement('a')
+          link.href = url
+          const studentName = formData?.student?.name || 'Aluno'
+          const date = new Date().toISOString().split('T')[0]
+          const safeName = studentName
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9\s]/g, '')
+            .replace(/\s+/g, '_')
+            .substring(0, 20)
+          link.download = `Proposta_${safeName}_${date}.pdf`
+          document.body.appendChild(link)
+          link.click()
+          setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url) }, 100)
+        } else {
+          await generateProposalPDF(proposalData)
+        }
+      } catch {}
 
       // 5) Concluir fluxo visual e limpar formulário
       setSubmissionStatus('success')
