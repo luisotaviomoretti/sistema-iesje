@@ -183,7 +183,7 @@ export default function RematriculaBuscaPage() {
           const meses = Number(inad.meses_inadim ?? 0)
           inadSnapshot = { meses_inadim: inad.meses_inadim ?? null, codigo_inadim: inad.codigo_inadim ?? null }
           if (meses === 1) {
-            const ok = window.confirm('Este aluno consta inadimplência (1 mês). Deseja continuar?')
+            const ok = window.confirm('Este aluno consta inadimplência (1 mês). Valide com a Tesouraria o prosseguimento desta rematrícula. Deseja continuar?')
             if (!ok) return
             override1mAccepted = true
           } else {
