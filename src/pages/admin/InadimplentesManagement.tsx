@@ -36,9 +36,11 @@ import {
   useSoftDeleteInadimplente,
   useRestoreInadimplente,
   useCsvIngestion,
+  useReplaceInadimplentesBySchool,
   type Inadimplente,
 } from '@/features/admin/hooks/useInadimplentes'
-import { MoreHorizontal, Plus, Upload, RotateCcw, Trash2, Undo2, Search } from 'lucide-react'
+import { parseInadExcel, type InadRow } from '@/features/admin/utils/inadExcelParser'
+import { MoreHorizontal, Plus, RotateCcw, Trash2, Undo2, Search } from 'lucide-react'
 
 function formatDate(d?: string | null) {
   if (!d) return '-'
@@ -89,6 +91,51 @@ const InadimplentesManagement = () => {
   const softDelete = useSoftDeleteInadimplente()
   const restore = useRestoreInadimplente()
   const ingest = useCsvIngestion()
+  const replaceBySchool = useReplaceInadimplentesBySchool()
+
+  // Excel (Pelicano / Sete Setembro)
+  const [pelicanoFiles, setPelicanoFiles] = useState<File[]>([])
+  const [seteFiles, setSeteFiles] = useState<File[]>([])
+  const [pelPreview, setPelPreview] = useState<{ rows: InadRow[]; stats: any } | null>(null)
+  const [setePreview, setSetePreview] = useState<{ rows: InadRow[]; stats: any } | null>(null)
+
+  const onExcelPelicano = async (files: FileList | null) => {
+    try {
+      const f = Array.from(files ?? []).filter((x) => x.name.toLowerCase().endsWith('.xlsx') || x.name.toLowerCase().endsWith('.xls'))
+      if (f.length === 0) { toast.error('Selecione arquivo .xlsx/.xls'); return }
+      setPelicanoFiles(f)
+      const res = await parseInadExcel(f, 'pelicano')
+      setPelPreview(res)
+      toast.success(`Pelicano: ${res.stats.uniqueStudents} alunos (raw: ${res.stats.totalRaw})`)
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao ler Excel Pelicano')
+    }
+  }
+
+  const onExcelSete = async (files: FileList | null) => {
+    try {
+      const f = Array.from(files ?? []).filter((x) => x.name.toLowerCase().endsWith('.xlsx') || x.name.toLowerCase().endsWith('.xls'))
+      if (f.length === 0) { toast.error('Selecione arquivo .xlsx/.xls'); return }
+      setSeteFiles(f)
+      const res = await parseInadExcel(f, 'sete_setembro')
+      setSetePreview(res)
+      toast.success(`Sete Setembro: ${res.stats.uniqueStudents} alunos (raw: ${res.stats.totalRaw})`)
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao ler Excel Sete Setembro')
+    }
+  }
+
+  const publishSchool = async (school: 'pelicano' | 'sete_setembro') => {
+    const prev = school === 'pelicano' ? pelPreview : setePreview
+    if (!prev || prev.rows.length === 0) { toast.error('Nada para publicar. Gere a prévia do Excel antes.'); return }
+    try {
+      const data = await replaceBySchool.mutateAsync({ escola: school, rows: prev.rows })
+      const r = Array.isArray(data) ? data[0] : data
+      toast.success(`${school}: substituição concluída. Desativados: ${r?.deactivated_count ?? 0} / Inseridos: ${r?.inserted_count ?? 0}`)
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao substituir inadimplentes')
+    }
+  }
 
   // Dialog Novo/Editar
   const [openForm, setOpenForm] = useState(false)
@@ -158,7 +205,7 @@ const InadimplentesManagement = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestão Inadimplentes</h1>
-          <p className="text-muted-foreground">Gerencie a lista usada para bloquear a Rematrícula (soft delete e importação CSV).</p>
+          <p className="text-muted-foreground">Gerencie a lista usada para bloquear a Rematrícula (soft delete e substituição via Excel).</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => window.location.reload()}>
@@ -166,15 +213,59 @@ const InadimplentesManagement = () => {
           </Button>
           {permissions.canApprove && (
             <>
-              <Button variant="secondary" onClick={() => fileRef.current?.click()}>
-                <Upload className="mr-2 h-4 w-4" /> Importar CSV
-              </Button>
-              <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onCsv(f) }} />
               <Button onClick={() => { resetForm(); setOpenForm(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Novo
               </Button>
             </>
           )}
+
+      {/* Excel Upload (Pelicano / Sete Setembro) */}
+      {permissions.canApprove && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Substituir por Escola (Excel)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Pelicano */}
+              <div className="space-y-3">
+                <Label>Pelicano — Arquivos (.xlsx/.xls)</Label>
+                <Input type="file" accept=".xlsx,.xls" multiple onChange={(e)=> onExcelPelicano(e.target.files)} />
+                {pelPreview && (
+                  <div className="text-sm text-muted-foreground">
+                    <div>Alunos únicos: <strong>{pelPreview.stats.uniqueStudents}</strong> (raw: {pelPreview.stats.totalRaw})</div>
+                    <div>Com responsável: <strong>{pelPreview.stats.withGuardian}</strong></div>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => { setPelicanoFiles([]); setPelPreview(null) }}>Limpar</Button>
+                  <Button onClick={() => publishSchool('pelicano')} disabled={replaceBySchool.isPending || !pelPreview}>
+                    {replaceBySchool.isPending ? 'Publicando...' : 'Publicar Pelicano'}
+                  </Button>
+                </div>
+              </div>
+              {/* Sete Setembro */}
+              <div className="space-y-3">
+                <Label>Sete Setembro — Arquivos (.xlsx/.xls)</Label>
+                <Input type="file" accept=".xlsx,.xls" multiple onChange={(e)=> onExcelSete(e.target.files)} />
+                {setePreview && (
+                  <div className="text-sm text-muted-foreground">
+                    <div>Alunos únicos: <strong>{setePreview.stats.uniqueStudents}</strong> (raw: {setePreview.stats.totalRaw})</div>
+                    <div>Com responsável: <strong>{setePreview.stats.withGuardian}</strong></div>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => { setSeteFiles([]); setSetePreview(null) }}>Limpar</Button>
+                  <Button onClick={() => publishSchool('sete_setembro')} disabled={replaceBySchool.isPending || !setePreview}>
+                    {replaceBySchool.isPending ? 'Publicando...' : 'Publicar Sete Setembro'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">A publicação substitui os registros <em>ativos</em> da escola selecionada por uma nova lista processada a partir do Excel. Operação auditada e transacional.</p>
+          </CardContent>
+        </Card>
+      )}
         </div>
       </div>
 

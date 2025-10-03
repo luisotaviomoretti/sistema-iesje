@@ -39,6 +39,35 @@ export const useInadimplentes = (filters: InadimplentesFilters = { isActive: tru
   })
 }
 
+// Replace (by school) using Excel-parsed rows
+// Calls RPC replace_inadimplentes_by_school(p_escola, p_rows)
+export const useReplaceInadimplentesBySchool = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (params: {
+      escola: 'pelicano' | 'sete_setembro'
+      rows: Array<{
+        codigo_inadim?: string | null
+        student_name: string
+        guardian1_name?: string | null
+        student_escola?: string | null
+        meses_inadim?: number | null
+      }>
+    }) => {
+      const { data, error } = await supabase.rpc('replace_inadimplentes_by_school', {
+        p_escola: params.escola,
+        p_rows: params.rows,
+      })
+      if (error) throw error
+      return data as { deactivated_count: number; inserted_count: number }[]
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inadimplentes'] })
+      qc.invalidateQueries({ queryKey: ['inadimplentes-stats'] })
+    },
+  })
+}
+
 export const useInadimplentesStats = () => {
   return useQuery({
     queryKey: ['inadimplentes-stats'],
