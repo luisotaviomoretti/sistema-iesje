@@ -169,6 +169,8 @@ export default function RematriculaBuscaPage() {
     try {
       setValidatingId(row.student_id)
       // F5: Checagem de inadimplência (não-disruptiva: usa flag no servidor)
+      let override1mAccepted = false
+      let inadSnapshot: { meses_inadim: number | null; codigo_inadim: string | null } | null = null
       try {
         const guardian = (items.find(i => i.student_id === row.student_id)?.guardian_names || [])[0] || null
         const school = (items.find(i => i.student_id === row.student_id)?.school_name) || null
@@ -178,12 +180,20 @@ export default function RematriculaBuscaPage() {
           school: school || undefined,
         })
         if (inad.is_inadimplente) {
-          toast({
-            title: 'Ação bloqueada por inadimplência',
-            description: `Este aluno consta em inadimplência${inad.meses_inadim ? ` (${inad.meses_inadim} mês(es))` : ''}${inad.codigo_inadim ? ` — código ${inad.codigo_inadim}` : ''}. Procure a Tesouraria para regularizar.`,
-            duration: 6000,
-          })
-          return
+          const meses = Number(inad.meses_inadim ?? 0)
+          inadSnapshot = { meses_inadim: inad.meses_inadim ?? null, codigo_inadim: inad.codigo_inadim ?? null }
+          if (meses === 1) {
+            const ok = window.confirm('Este aluno consta inadimplência (1 mês). Deseja continuar?')
+            if (!ok) return
+            override1mAccepted = true
+          } else {
+            toast({
+              title: 'Ação bloqueada por inadimplência',
+              description: `Este aluno consta em inadimplência${inad.meses_inadim ? ` (${inad.meses_inadim} mês(es))` : ''}${inad.codigo_inadim ? ` — código ${inad.codigo_inadim}` : ''}. Procure a Tesouraria para regularizar.`,
+              duration: 6000,
+            })
+            return
+          }
         }
       } catch {
         // Falha silenciosa: segue fluxo normal
@@ -228,7 +238,9 @@ export default function RematriculaBuscaPage() {
             name: fresh.student_name,
             escola: fresh.school_name,
             previousSeries: fresh.grade_name,
-          }
+          },
+          inadOverride1m: override1mAccepted || undefined,
+          inadSnapshot: inadSnapshot || undefined,
         }
       })
     } catch (e: any) {

@@ -182,6 +182,7 @@ export default function RematriculaDetailsPage() {
     enabled: Boolean(studentNameForCheck),
   })
   const isInadimplente = Boolean(inadCheck?.is_inadimplente)
+  const inadOverride1m = Boolean((location?.state as any)?.inadOverride1m)
 
   const [editStudentOpen, setEditStudentOpen] = useState(false)
   const [editGuardiansOpen, setEditGuardiansOpen] = useState(false)
@@ -265,11 +266,18 @@ export default function RematriculaDetailsPage() {
 
   const renderDetails = (model: RematriculaReadModel) => (
     <div className="space-y-4">
-      {isInadimplente && (
+      {isInadimplente && !inadOverride1m && (
         <Alert variant="destructive">
           <AlertDescription>
             Consta inadimplência associada a este aluno. A finalização da rematrícula está temporariamente bloqueada.
             Procure a Tesouraria para regularizar a situação.
+          </AlertDescription>
+        </Alert>
+      )}
+      {inadOverride1m && (
+        <Alert>
+          <AlertDescription>
+            Exceção aplicada: aluno com <strong>1 mês</strong> de inadimplência. Finalização permitida mediante confirmação prévia.
           </AlertDescription>
         </Alert>
       )}
@@ -474,7 +482,7 @@ export default function RematriculaDetailsPage() {
 
       {/* Ações */}
       <div className="flex gap-3">
-        <Button onClick={() => setFinalizeOpen(true)} disabled={isInadimplente} title={isInadimplente ? 'Bloqueado por inadimplência' : undefined}>
+        <Button onClick={() => setFinalizeOpen(true)} disabled={isInadimplente && !inadOverride1m} title={(isInadimplente && !inadOverride1m) ? 'Bloqueado por inadimplência' : undefined}>
           Finalizar Rematrícula
         </Button>
         <Button
@@ -589,6 +597,7 @@ export default function RematriculaDetailsPage() {
               suggestedPercentageOverride: overrideToSend,
               paymentNotesEnabled: Boolean(paymentNotesCfg?.enabled),
               paymentNotes,
+              inadOverride1m: inadOverride1m || undefined,
             })
             // Gerar PDF, subir no Storage e salvar URL durável; fazer download local
             try {

@@ -47,6 +47,7 @@ import AdminRoute from "./features/admin/components/AdminRoute";
 import AdminLayout from "./features/admin/components/AdminLayout";
 import SystemConfigurations from "./pages/admin/SystemConfigurations";
 import InadimplentesManagement from "./pages/admin/InadimplentesManagement";
+import InadOverrideEnrollments from "./pages/admin/InadOverrideEnrollments";
 
 const queryClient = new QueryClient();
 
@@ -168,6 +169,16 @@ const App = () => (
               <Route path="inadimplentes" element={
                 <AdminRoute requiredRole="coordenador">
                   <InadimplentesManagement />
+                </AdminRoute>
+              } />
+              <Route path="inad-override-enrollments" element={
+                <AdminRoute requiredRole="coordenador">
+                  <InadOverrideEnrollments />
+                </AdminRoute>
+              } />
+              <Route path="inad-override-enrollment" element={
+                <AdminRoute requiredRole="coordenador">
+                  <InadOverrideEnrollments />
                 </AdminRoute>
               } />
               <Route path="trilhos" element={

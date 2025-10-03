@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -216,30 +217,35 @@ const InadimplentesManagement = () => {
               <Button onClick={() => { resetForm(); setOpenForm(true) }}>
                 <Plus className="mr-2 h-4 w-4" /> Novo
               </Button>
+              <Button asChild variant="outline">
+                <Link to="/admin/inad-override-enrollments">Matrículas c/ Exceção (1 mês)</Link>
+              </Button>
             </>
           )}
+        </div>
+      </div>
 
-      {/* Excel Upload (Pelicano / Sete Setembro) */}
+      {/* Excel Upload (Pelicano / Sete Setembro) — agora abaixo do header para melhor layout */}
       {permissions.canApprove && (
         <Card>
           <CardHeader>
             <CardTitle>Substituir por Escola (Excel)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Pelicano */}
               <div className="space-y-3">
                 <Label>Pelicano — Arquivos (.xlsx/.xls)</Label>
-                <Input type="file" accept=".xlsx,.xls" multiple onChange={(e)=> onExcelPelicano(e.target.files)} />
+                <Input className="w-full" type="file" accept=".xlsx,.xls" multiple onChange={(e)=> onExcelPelicano(e.target.files)} />
                 {pelPreview && (
                   <div className="text-sm text-muted-foreground">
                     <div>Alunos únicos: <strong>{pelPreview.stats.uniqueStudents}</strong> (raw: {pelPreview.stats.totalRaw})</div>
                     <div>Com responsável: <strong>{pelPreview.stats.withGuardian}</strong></div>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => { setPelicanoFiles([]); setPelPreview(null) }}>Limpar</Button>
-                  <Button onClick={() => publishSchool('pelicano')} disabled={replaceBySchool.isPending || !pelPreview}>
+                <div className="flex flex-wrap gap-2">
+                  <Button className="w-full md:w-auto" variant="outline" onClick={() => { setPelicanoFiles([]); setPelPreview(null) }}>Limpar</Button>
+                  <Button className="w-full md:w-auto" onClick={() => publishSchool('pelicano')} disabled={replaceBySchool.isPending || !pelPreview}>
                     {replaceBySchool.isPending ? 'Publicando...' : 'Publicar Pelicano'}
                   </Button>
                 </div>
@@ -247,16 +253,16 @@ const InadimplentesManagement = () => {
               {/* Sete Setembro */}
               <div className="space-y-3">
                 <Label>Sete Setembro — Arquivos (.xlsx/.xls)</Label>
-                <Input type="file" accept=".xlsx,.xls" multiple onChange={(e)=> onExcelSete(e.target.files)} />
+                <Input className="w-full" type="file" accept=".xlsx,.xls" multiple onChange={(e)=> onExcelSete(e.target.files)} />
                 {setePreview && (
                   <div className="text-sm text-muted-foreground">
                     <div>Alunos únicos: <strong>{setePreview.stats.uniqueStudents}</strong> (raw: {setePreview.stats.totalRaw})</div>
                     <div>Com responsável: <strong>{setePreview.stats.withGuardian}</strong></div>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => { setSeteFiles([]); setSetePreview(null) }}>Limpar</Button>
-                  <Button onClick={() => publishSchool('sete_setembro')} disabled={replaceBySchool.isPending || !setePreview}>
+                <div className="flex flex-wrap gap-2">
+                  <Button className="w-full md:w-auto" variant="outline" onClick={() => { setSeteFiles([]); setSetePreview(null) }}>Limpar</Button>
+                  <Button className="w-full md:w-auto" onClick={() => publishSchool('sete_setembro')} disabled={replaceBySchool.isPending || !setePreview}>
                     {replaceBySchool.isPending ? 'Publicando...' : 'Publicar Sete Setembro'}
                   </Button>
                 </div>
@@ -266,8 +272,6 @@ const InadimplentesManagement = () => {
           </CardContent>
         </Card>
       )}
-        </div>
-      </div>
 
       {/* Stats */}
       {stats.length > 0 && (

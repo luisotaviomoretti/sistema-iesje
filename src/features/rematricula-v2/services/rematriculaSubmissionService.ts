@@ -25,6 +25,8 @@ export interface BuildPayloadInput {
   paymentNotes?: string
   // F5 — Payloads: incluir campos anuais informativos quando habilitado
   includeAnnualFields?: boolean
+  // Inadimplência 1 mês — override confirmado pelo usuário (frontend)
+  inadOverride1m?: boolean
 }
 
 export interface BuildPayloadOutput {
@@ -59,7 +61,7 @@ function toDateOnly(value?: string | null): string | null {
 }
 
 export const RematriculaSubmissionService = {
-  buildPayload({ readModel, series, discounts, shift, currentUser, destinationSchoolFormValue, suggestedPercentageOverride, paymentNotesEnabled, paymentNotes, includeAnnualFields }: BuildPayloadInput): BuildPayloadOutput {
+  buildPayload({ readModel, series, discounts, shift, currentUser, destinationSchoolFormValue, suggestedPercentageOverride, paymentNotesEnabled, paymentNotes, includeAnnualFields, inadOverride1m }: BuildPayloadInput): BuildPayloadOutput {
     const student = readModel.student || ({} as any)
     const guardians = readModel.guardians || ({} as any)
     const address = readModel.address || ({} as any)
@@ -201,6 +203,11 @@ export const RematriculaSubmissionService = {
       created_by_user_type: currentUser?.type || 'anonymous',
       
       // tag_matricula derivada no servidor (trigger BEFORE INSERT)
+    }
+
+    // Override de 1 mês de inadimplência (sinalização para a RPC)
+    if (inadOverride1m) {
+      p_enrollment.inad_override_1m = true
     }
 
     // F5 — Campos anuais informativos (não obrigatórios no servidor)
