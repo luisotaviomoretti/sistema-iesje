@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 
-export type TimeRange = "7d" | "30d" | "90d"
+export type TimeRange = "7d" | "14d" | "21d" | "30d" | "90d" | "from_start"
 export type Escola = "pelicano" | "sete_setembro"
 export type Origin = "rematricula" | "novo_aluno"
 
@@ -20,7 +20,11 @@ export interface EnrollmentSeriesPoint {
 
 function startEndFromRange(range: TimeRange): { startISO: string; endISO: string; days: number; startLocalDate: Date } {
   const endLocal = new Date()
-  const days = range === "7d" ? 7 : range === "30d" ? 30 : 90
+  const days =
+    range === "7d" ? 7 :
+    range === "14d" ? 14 :
+    range === "21d" ? 21 :
+    range === "30d" ? 30 : 90
   const startLocal = new Date(endLocal)
   startLocal.setDate(endLocal.getDate() - (days - 1))
   // Trunca para início/fim do dia em HORÁRIO LOCAL
@@ -51,7 +55,7 @@ function buildDateSkeleton(start: Date, days: number) {
 }
 
 export function useEnrollmentsTimeSeries(filters: TimeSeriesFilters) {
-  const { startISO, endISO, days, startLocalDate } = startEndFromRange(filters.timeRange)
+  const isFromStart = filters.timeRange === "from_start"
 
   return useQuery<EnrollmentSeriesPoint[]>({
     queryKey: [
@@ -62,6 +66,62 @@ export function useEnrollmentsTimeSeries(filters: TimeSeriesFilters) {
     ],
     staleTime: 1000 * 60 * 5, // 5 min
     queryFn: async () => {
+      // Resolve start/end range
+      let startISO: string
+      let endISO: string
+      let days: number
+      let startLocalDate: Date
+
+      if (!isFromStart) {
+        const r = startEndFromRange(filters.timeRange)
+        startISO = r.startISO
+        endISO = r.endISO
+        days = r.days
+        startLocalDate = r.startLocalDate
+      } else {
+        // Find earliest created_at with applied filters (status != deleted)
+        let qMin = supabase
+          .from("enrollments")
+          .select("created_at, student_escola, tag_matricula, status")
+          .neq("status", "deleted")
+          .order("created_at", { ascending: true })
+          .limit(1)
+
+        if (filters.escola && filters.escola !== "all") {
+          qMin = qMin.eq("student_escola", filters.escola)
+        }
+        if (filters.origin && filters.origin !== "all") {
+          qMin = qMin.eq("tag_matricula", filters.origin)
+        }
+
+        const { data: minRows, error: minErr } = await qMin
+        if (minErr) throw minErr
+
+        const endLocal = new Date()
+        const endOfDayLocal = new Date(endLocal)
+        endOfDayLocal.setHours(23, 59, 59, 999)
+        endISO = endOfDayLocal.toISOString()
+
+        if (!minRows || minRows.length === 0) {
+          // No data: use today as start to return empty/zeroed series for 1 day
+          const startLocal = new Date(endLocal)
+          startLocal.setHours(0, 0, 0, 0)
+          startLocalDate = startLocal
+          startISO = startLocal.toISOString()
+          days = 1
+        } else {
+          const firstCreatedAt = new Date((minRows[0] as any).created_at)
+          const startLocal = new Date(firstCreatedAt)
+          startLocal.setHours(0, 0, 0, 0)
+          startLocalDate = startLocal
+          startISO = startLocal.toISOString()
+          // inclusive day span between startLocal and endLocal
+          const msPerDay = 24 * 60 * 60 * 1000
+          const diffDays = Math.floor((new Date(endOfDayLocal.getFullYear(), endOfDayLocal.getMonth(), endOfDayLocal.getDate()).getTime() - new Date(startLocal.getFullYear(), startLocal.getMonth(), startLocal.getDate()).getTime()) / msPerDay) + 1
+          days = Math.max(1, diffDays)
+        }
+      }
+
       // Build base query
       let query = supabase
         .from("enrollments")

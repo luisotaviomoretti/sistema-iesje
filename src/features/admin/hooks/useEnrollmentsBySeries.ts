@@ -50,7 +50,7 @@ export function useEnrollmentsBySeries(filters: EnrollmentsBySeriesFilters) {
       // Step 2: Fetch enrollments for the selected escola with financial data
       const { data: enrollments, error: enrollmentsError } = await supabase
         .from("enrollments")
-        .select("series_name, series_id, student_escola, status, annual_total_value, base_value, total_discount_value")
+        .select("series_name, series_id, student_escola, status, final_monthly_value, material_cost, base_value, total_discount_value")
         .eq("student_escola", filters.escola)
         .neq("status", "deleted")
 
@@ -76,7 +76,10 @@ export function useEnrollmentsBySeries(filters: EnrollmentsBySeriesFilters) {
           }
 
           current.count += 1
-          current.total_annual_revenue += Number(row.annual_total_value) || 0
+          const fm = Number(row.final_monthly_value ?? 0)
+          const mat = Number(row.material_cost ?? 0)
+          const monthlyTotal = (isFinite(fm) ? fm : 0) + (isFinite(mat) ? mat : 0)
+          current.total_annual_revenue += monthlyTotal >= 0 ? monthlyTotal * 12 : 0
           current.total_base_value += Number(row.base_value) || 0
           current.total_discount_value += Number(row.total_discount_value) || 0
 

@@ -40,7 +40,10 @@ const chartConfig = {
 function formatRangeLabel(r: TimeRange) {
   switch (r) {
     case "7d": return "Últimos 7 dias"
+    case "14d": return "Últimos 14 dias"
+    case "21d": return "Últimos 21 dias"
     case "30d": return "Últimos 30 dias"
+    case "from_start": return "Desde a primeira matrícula"
     default: return "Últimos 90 dias"
   }
 }
@@ -61,7 +64,7 @@ function formatViewLabel(v: "daily" | "cumulative") {
 }
 
 export function EnrollmentsAreaChart() {
-  const [timeRange, setTimeRange] = React.useState<TimeRange>("7d")
+  const [timeRange, setTimeRange] = React.useState<TimeRange>("from_start")
   const [escola, setEscola] = React.useState<Escola | "all">("all")
   const [origin, setOrigin] = React.useState<Origin | "all">("all")
   const [view, setView] = React.useState<"daily" | "cumulative">("cumulative")
@@ -107,7 +110,7 @@ export function EnrollmentsAreaChart() {
                 ? '-'
                 : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(kpis?.annualRevenue ?? 0)}
             </div>
-            <p className="text-xs text-muted-foreground">Soma de annual_total_value (com material)</p>
+            <p className="text-xs text-muted-foreground">12 × (final_monthly_value + material_cost)</p>
           </CardContent>
         </Card>
 
@@ -145,7 +148,10 @@ export function EnrollmentsAreaChart() {
               <SelectContent className="rounded-xl">
                 <SelectItem value="90d" className="rounded-lg">90 dias</SelectItem>
                 <SelectItem value="30d" className="rounded-lg">30 dias</SelectItem>
+                <SelectItem value="21d" className="rounded-lg">21 dias</SelectItem>
+                <SelectItem value="14d" className="rounded-lg">14 dias</SelectItem>
                 <SelectItem value="7d" className="rounded-lg">7 dias</SelectItem>
+                <SelectItem value="from_start" className="rounded-lg">Desde a primeira matrícula</SelectItem>
               </SelectContent>
             </Select>
 
