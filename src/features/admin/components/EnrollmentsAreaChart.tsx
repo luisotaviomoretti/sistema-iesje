@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select"
 import { useEnrollmentsTimeSeries, TimeRange, Escola, Origin } from "@/features/admin/hooks/useEnrollmentsTimeSeries"
 import { useEnrollmentKpis } from "@/features/admin/hooks/useEnrollmentKpis"
+import { RegularCombinadoKpiCards } from "@/features/admin/components/RegularCombinadoKpiCards"
 
 const chartConfig = {
   rematricula: {
@@ -88,7 +89,7 @@ export function EnrollmentsAreaChart() {
 
   return (
     <>
-      {/* KPI Cards */}
+      {/* KPI Cards - Todas as matrículas */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -130,6 +131,13 @@ export function EnrollmentsAreaChart() {
           </CardContent>
         </Card>
       </div>
+
+      {/* KPI Cards - Regular + Combinado */}
+      <RegularCombinadoKpiCards
+        timeRange={timeRange}
+        escola={escola}
+        origin={origin}
+      />
 
       {/* Area Chart */}
       <Card className="pt-0 mt-4">
