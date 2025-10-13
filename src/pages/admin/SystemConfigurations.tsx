@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase'
 import {
   Select,
   SelectContent,
@@ -143,6 +144,11 @@ export default function SystemConfigurations() {
   const [clusterB, setClusterB] = useState<string>('0')
   const [clusterC, setClusterC] = useState<string>('0')
   const [clusterD, setClusterD] = useState<string>('0')
+
+  // Cluster Metrics — estados locais
+  const [clusterMetrics, setClusterMetrics] = useState<Array<{ cluster_code: 'A' | 'B' | 'C' | 'D'; student_count: number; annual_revenue: number }>>([])
+  const [loadingClusterMetrics, setLoadingClusterMetrics] = useState<boolean>(false)
+  const [clusterMetricsError, setClusterMetricsError] = useState<string | null>(null)
 
   // Rematrícula — Home & Busca — estados locais
   const [homeActionsEnabled, setHomeActionsEnabled] = useState<boolean>(false)
@@ -886,6 +892,54 @@ export default function SystemConfigurations() {
     if (homeAcademicYearPublic != null) setHomeAcademicYear(String(homeAcademicYearPublic))
   }, [homeAcademicYearPublic])
 
+  // Ano base para previous_year_students = (ano letivo - 1)
+  const prevYear = useMemo(() => {
+    const y = Number(homeAcademicYear)
+    return Number.isFinite(y) ? String(y - 1) : undefined
+  }, [homeAcademicYear])
+
+  // Carregar métricas por cluster a partir da RPC segura
+  useEffect(() => {
+    ;(async () => {
+      try {
+        setLoadingClusterMetrics(true)
+        setClusterMetricsError(null)
+        const { data, error } = await supabase.rpc('get_rematricula_cluster_metrics', {
+          p_academic_year: prevYear,
+        })
+        if (error) throw error
+        setClusterMetrics((data || []) as any)
+      } catch (err: any) {
+        console.error('[Admin Config] Falha ao carregar métricas de Cluster:', err)
+        setClusterMetricsError(err?.message || 'Falha ao carregar métricas')
+      } finally {
+        setLoadingClusterMetrics(false)
+      }
+    })()
+  }, [prevYear])
+
+  // Mapa auxiliar para renderização do grid
+  const metricsByCluster = useMemo(() => {
+    const base: Record<'A' | 'B' | 'C' | 'D', { count: number; annual: number }> = {
+      A: { count: 0, annual: 0 },
+      B: { count: 0, annual: 0 },
+      C: { count: 0, annual: 0 },
+      D: { count: 0, annual: 0 },
+    }
+    for (const r of clusterMetrics || []) {
+      const code = (r?.cluster_code || '') as 'A' | 'B' | 'C' | 'D'
+      if (code && base[code]) {
+        base[code] = {
+          count: Number(r.student_count || 0),
+          annual: Number(r.annual_revenue || 0),
+        }
+      }
+    }
+    return base
+  }, [clusterMetrics])
+
+  const formatCurrencyBR = (v?: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0))
+
   const { mutateAsync: updateConfigValue, isPending: saving } = useUpdateConfigValue()
   const { mutateAsync: createConfig, isPending: creating } = useCreateSystemConfig()
 
@@ -1197,6 +1251,34 @@ export default function SystemConfigurations() {
             <div className="text-sm text-muted-foreground">Carregando configurações...</div>
           ) : (
             <>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="font-medium">Métricas por Cluster — Base {String(homeAcademicYear || '').trim() || '(ano anterior)'}</Label>
+                    <p className="text-xs text-muted-foreground">Quantidade de alunos e receita anual (12× mensal) por faixa de desconto do ano anterior.</p>
+                  </div>
+                  {loadingClusterMetrics && (
+                    <span className="text-xs text-muted-foreground">Atualizando…</span>
+                  )}
+                </div>
+                {clusterMetricsError && (
+                  <Alert variant="destructive">
+                    <AlertDescription className="text-xs">{clusterMetricsError}</AlertDescription>
+                  </Alert>
+                )}
+                {!clusterMetricsError && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {(['A','B','C','D'] as const).map((code) => (
+                      <div key={code} className="rounded-md border p-3 bg-muted/30">
+                        <div className="text-xs text-muted-foreground">Cluster {code}</div>
+                        <div className="text-sm">Alunos: <strong>{metricsByCluster[code].count.toLocaleString('pt-BR')}</strong></div>
+                        <div className="text-sm">Receita anual: <strong>{formatCurrencyBR(metricsByCluster[code].annual)}</strong></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <Label className="font-medium">Ativar Ajuste por Cluster</Label>
