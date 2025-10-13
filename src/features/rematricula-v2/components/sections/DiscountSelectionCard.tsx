@@ -279,14 +279,6 @@ export default function DiscountSelectionCard({ suggestedPercentage, suggestedCo
                         )}
                       </div>
                     )}
-                    {capInfo?.capped && displaySuggested && (
-                      <Alert className="mt-2">
-                        <AlertCircle className="h-4 w-4 text-amber-600" />
-                        <AlertDescription className="text-xs text-amber-900">
-                          O Desconto Sugerido foi ajustado para {Number(suggestedPercentage).toFixed(1)}% devido a regras administrativas (CAP). O desconto do ano anterior era {Number(capInfo.previousPercent).toFixed(1)}%.
-                        </AlertDescription>
-                      </Alert>
-                    )}
                   </>
                 )}
               </div>

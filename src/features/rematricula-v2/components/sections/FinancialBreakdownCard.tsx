@@ -97,13 +97,13 @@ export default function FinancialBreakdownCard({
     }
     
     // Converter formato dos descontos para o esperado pelo serviço
-    const formattedDiscounts = effectiveDiscounts?.map(d => ({
-      id: d.tipoDescontoId || d.id,
-      codigo: d.tipoDescontoId || d.codigo || 'SUGERIDO',
-      nome: d.nome || 'Desconto',
-      percentual: d.percentual,
-      trilho: d.trilho
-    })) || []
+    const formattedDiscounts = (effectiveDiscounts || []).map((d: any) => ({
+      id: d?.tipoDescontoId ?? d?.id,
+      codigo: d?.tipoDescontoId ?? d?.codigo ?? 'SUGERIDO',
+      nome: d?.nome ?? 'Desconto',
+      percentual: d?.percentual,
+      trilho: d?.trilho,
+    }))
     
     try {
       const result = RematriculaPricingService.calculate(series, formattedDiscounts as any)
@@ -194,7 +194,6 @@ export default function FinancialBreakdownCard({
   }
 
   const hasDiscount = pricing.totalDiscountPercentage > 0
-  const showCapAlert = Boolean(capInfo?.capped && (!discounts || discounts.length === 0) && typeof suggestedPercentage === 'number')
 
   return (
     <Card className={cn("", className)}>
@@ -219,14 +218,7 @@ export default function FinancialBreakdownCard({
       </CardHeader>
       
       <CardContent className="space-y-6">
-        {showCapAlert && (
-          <Alert className="border-amber-200 bg-amber-50">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-900 text-xs">
-              O Desconto Sugerido foi ajustado para {Number(suggestedPercentage).toFixed(1)}% devido a regras administrativas (CAP). O desconto do ano anterior era {Number(capInfo?.previousPercent || 0).toFixed(1)}%.
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Aviso de CAP removido conforme solicitação */}
         {/* Valores Base (exibir apenas no modo mensal) */}
         {!annualEnabled && (
           <div className="space-y-3">

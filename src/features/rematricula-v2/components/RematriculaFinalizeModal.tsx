@@ -251,13 +251,6 @@ export default function RematriculaFinalizeModal({ open, onOpenChange, readModel
           {/* Descontos */}
           <section>
             <h3 className="text-sm font-semibold text-muted-foreground mb-2">Descontos</h3>
-            {capInfo?.capped && (!selection?.discounts || selection.discounts.length === 0) && (
-              <Alert className="mb-3">
-                <AlertDescription className="text-xs">
-                  O Desconto Sugerido foi ajustado para {formatPercent(suggestedPercentageOverride ?? (readModel?.financial?.total_discount_percentage || 0))} devido a regras administrativas (CAP). O desconto do ano anterior era {formatPercent(capInfo.previousPercent)}.
-                </AlertDescription>
-              </Alert>
-            )}
             <div className="space-y-1 text-sm">
               <div className="text-muted-foreground">Origem: {discountsSummary.source}</div>
               {discountsSummary.items?.length > 0 && (
