@@ -40,6 +40,8 @@ import {
   primeNovomatriculaPaymentNotesConfigCache,
   invalidateSeriesAnnualValuesConfigCache,
   primeSeriesAnnualValuesConfigCache,
+  invalidateClusterAdjustmentConfigCache,
+  primeClusterAdjustmentConfigCache,
 } from '@/lib/config/config.service'
 
 const KEY_ENABLED = 'rematricula.suggested_discount_cap.enabled'
@@ -87,6 +89,13 @@ const NOVO_PAY_NOTES_KEY_ENABLED = 'novomatricula.payment_notes.enabled'
 const SERIES_KEY_ENABLED = 'series.annual_values.enabled'
 const SERIES_KEY_INPUT_MODE = 'series.annual_values.input_mode'
 
+// Chaves Rematrícula — Ajuste por Cluster do Desconto Sugerido
+const CLUSTER_KEY_ENABLED = 'rematricula.cluster_adjustment.enabled'
+const CLUSTER_KEY_A = 'rematricula.cluster_adjustment.cluster_a.adjustment'
+const CLUSTER_KEY_B = 'rematricula.cluster_adjustment.cluster_b.adjustment'
+const CLUSTER_KEY_C = 'rematricula.cluster_adjustment.cluster_c.adjustment'
+const CLUSTER_KEY_D = 'rematricula.cluster_adjustment.cluster_d.adjustment'
+
 export default function SystemConfigurations() {
   const queryClient = useQueryClient()
   const { data: adminSession } = useAdminAuth()
@@ -102,6 +111,13 @@ export default function SystemConfigurations() {
   const { data: pavPercentPublic, isLoading: loadingPavPercent } = usePublicSystemConfig(PAV_KEY_PERCENT)
   const { data: pavCodePublic, isLoading: loadingPavCode } = usePublicSystemConfig(PAV_KEY_CODE)
   const { data: pavNamePublic, isLoading: loadingPavName } = usePublicSystemConfig(PAV_KEY_NAME)
+
+  // Cluster Adjustment — leitura pública
+  const { data: clusterEnabledPublic, isLoading: loadingClusterEnabled } = usePublicSystemConfig(CLUSTER_KEY_ENABLED)
+  const { data: clusterAPublic, isLoading: loadingClusterA } = usePublicSystemConfig(CLUSTER_KEY_A)
+  const { data: clusterBPublic, isLoading: loadingClusterB } = usePublicSystemConfig(CLUSTER_KEY_B)
+  const { data: clusterCPublic, isLoading: loadingClusterC } = usePublicSystemConfig(CLUSTER_KEY_C)
+  const { data: clusterDPublic, isLoading: loadingClusterD } = usePublicSystemConfig(CLUSTER_KEY_D)
 
   // Rematrícula — Home & Busca — leitura pública
   const { data: homeActionsPublic, isLoading: loadingHomeActions } = usePublicSystemConfig(HOME_KEY_ACTIONS)
@@ -120,6 +136,13 @@ export default function SystemConfigurations() {
   const [pavPercent, setPavPercent] = useState<string>('0')
   const [pavCode, setPavCode] = useState<string>('PAV')
   const [pavName, setPavName] = useState<string>('Pagamento à Vista')
+
+  // Cluster Adjustment — estados locais
+  const [clusterEnabled, setClusterEnabled] = useState<boolean>(false)
+  const [clusterA, setClusterA] = useState<string>('0')
+  const [clusterB, setClusterB] = useState<string>('0')
+  const [clusterC, setClusterC] = useState<string>('0')
+  const [clusterD, setClusterD] = useState<string>('0')
 
   // Rematrícula — Home & Busca — estados locais
   const [homeActionsEnabled, setHomeActionsEnabled] = useState<boolean>(false)
@@ -187,6 +210,89 @@ export default function SystemConfigurations() {
       setEnabled(v === 'true' || v === '1' || v === 'yes' || v === 'on')
     }
   }, [enabledPublic])
+
+  // Salvar Rematrícula — Ajuste por Cluster do Desconto Sugerido
+  const handleSaveClusterAdjustment = async () => {
+    try {
+      // Helper: criação com fallback priorizando categoria 'financeiro'
+      const createWithFinanceFallback = async (params: { chave: string; valor: string; descricao: string }) => {
+        const candidates = ['financeiro', 'geral']
+        let lastErr: any = null
+        for (const cat of candidates) {
+          try {
+            await createConfig({ chave: params.chave, valor: params.valor, categoria: cat, descricao: params.descricao, updated_by: adminEmail })
+            return
+          } catch (e: any) {
+            lastErr = e
+            const msg = String(e?.message || '')
+            if (!msg.includes('system_configs_categoria_valid')) throw e
+          }
+        }
+        throw lastErr || new Error('Falha ao criar configuração (categoria inválida)')
+      }
+
+      // Coerções e validações
+      const enabledVal = clusterEnabled ? 'true' : 'false'
+      const toNum = (s: string) => {
+        const n = Number(s)
+        if (!Number.isFinite(n)) return 0
+        return Math.max(-100, Math.min(100, n))
+      }
+      const aValNum = toNum(clusterA)
+      const bValNum = toNum(clusterB)
+      const cValNum = toNum(clusterC)
+      const dValNum = toNum(clusterD)
+
+      const aVal = String(aValNum)
+      const bVal = String(bValNum)
+      const cVal = String(cValNum)
+      const dVal = String(dValNum)
+
+      // Existência atual
+      const existsEnabled = clusterEnabledPublic != null
+      const existsA = clusterAPublic != null
+      const existsB = clusterBPublic != null
+      const existsC = clusterCPublic != null
+      const existsD = clusterDPublic != null
+
+      // Upsert idempotente
+      if (existsEnabled) await updateConfigValue({ chave: CLUSTER_KEY_ENABLED, valor: enabledVal, updated_by: adminEmail })
+      else await createWithFinanceFallback({ chave: CLUSTER_KEY_ENABLED, valor: enabledVal, descricao: 'Habilita o ajuste por cluster do desconto sugerido na Rematrícula. Dark Launch: sem efeito até ser ligado.' })
+
+      if (existsA) await updateConfigValue({ chave: CLUSTER_KEY_A, valor: aVal, updated_by: adminEmail })
+      else await createWithFinanceFallback({ chave: CLUSTER_KEY_A, valor: aVal, descricao: 'Ajuste em pontos percentuais para Cluster A (5% a <10%). Valores negativos reduzem, positivos aumentam.' })
+
+      if (existsB) await updateConfigValue({ chave: CLUSTER_KEY_B, valor: bVal, updated_by: adminEmail })
+      else await createWithFinanceFallback({ chave: CLUSTER_KEY_B, valor: bVal, descricao: 'Ajuste em pontos percentuais para Cluster B (10% a <15%). Valores negativos reduzem, positivos aumentam.' })
+
+      if (existsC) await updateConfigValue({ chave: CLUSTER_KEY_C, valor: cVal, updated_by: adminEmail })
+      else await createWithFinanceFallback({ chave: CLUSTER_KEY_C, valor: cVal, descricao: 'Ajuste em pontos percentuais para Cluster C (15% a <20%). Valores negativos reduzem, positivos aumentam.' })
+
+      if (existsD) await updateConfigValue({ chave: CLUSTER_KEY_D, valor: dVal, updated_by: adminEmail })
+      else await createWithFinanceFallback({ chave: CLUSTER_KEY_D, valor: dVal, descricao: 'Ajuste em pontos percentuais para Cluster D (≥20%). Valores negativos reduzem, positivos aumentam.' })
+
+      // Cache local — refletir imediatamente
+      invalidateClusterAdjustmentConfigCache()
+      primeClusterAdjustmentConfigCache({ enabled: clusterEnabled, clusterA: aValNum, clusterB: bValNum, clusterC: cValNum, clusterD: dValNum })
+
+      toast.success('Ajustes por Cluster salvos com sucesso!')
+    } catch (err: any) {
+      console.error('[Admin Configurações] Falha ao salvar Ajuste por Cluster:', err)
+      toast.error(err?.message || 'Erro ao salvar Ajustes por Cluster')
+    }
+  }
+
+  // Cluster Adjustment — hidratação
+  useEffect(() => {
+    if (clusterEnabledPublic != null) {
+      const v = String(clusterEnabledPublic).trim().toLowerCase()
+      setClusterEnabled(v === 'true' || v === '1' || v === 'yes' || v === 'on')
+    }
+  }, [clusterEnabledPublic])
+  useEffect(() => { if (clusterAPublic != null) setClusterA(String(clusterAPublic)) }, [clusterAPublic])
+  useEffect(() => { if (clusterBPublic != null) setClusterB(String(clusterBPublic)) }, [clusterBPublic])
+  useEffect(() => { if (clusterCPublic != null) setClusterC(String(clusterCPublic)) }, [clusterCPublic])
+  useEffect(() => { if (clusterDPublic != null) setClusterD(String(clusterDPublic)) }, [clusterDPublic])
 
   // Salvar Aluno Novo — Observações da Forma de Pagamento (flag)
   const handleSaveNovoPaymentNotes = async () => {
@@ -785,6 +891,8 @@ export default function SystemConfigurations() {
 
   const isLoading = loadingEnabled || loadingPercent
     || loadingPavEnabled || loadingPavPercent || loadingPavCode || loadingPavName
+    || loadingClusterEnabled || loadingClusterA || loadingClusterB || loadingClusterC || loadingClusterD
+    || loadingPavEnabled || loadingPavPercent || loadingPavCode || loadingPavName
     || loadingHomeActions || loadingHomeAdvanced || loadingHomeMinChars || loadingHomePageSize || loadingHomeDebounce || loadingHomeScope || loadingHomeYear
     || loadingEditEnabled || loadingEditStudent || loadingEditGuardians || loadingEditAddress || loadingEditTelemetry
     || loadingMacomEnabled || loadingMacomCategories || loadingMacomOneOnly || loadingMacomHideSuggested
@@ -1070,6 +1178,84 @@ export default function SystemConfigurations() {
               <Alert className="bg-muted/40">
                 <AlertDescription className="text-xs">
                   Efeito no app é imediato (cache local é invalidado). A política se aplica apenas ao Desconto Sugerido e não interfere em descontos adicionados manualmente pelo operador.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rematrícula — Ajuste por Cluster do Desconto Sugerido</CardTitle>
+          <CardDescription>
+            Define ajustes em pontos percentuais por faixa do desconto do ano anterior. A ordem de aplicação é: Desconto Base → Ajuste por Cluster → CAP.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Carregando configurações...</div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="font-medium">Ativar Ajuste por Cluster</Label>
+                  <p className="text-xs text-muted-foreground">Quando ativo, aplica o ajuste da faixa ao valor sugerido antes do CAP.</p>
+                </div>
+                <Switch checked={clusterEnabled} onCheckedChange={setClusterEnabled} />
+              </div>
+
+              {clusterEnabled && (
+                <>
+                  <Separator />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Cluster A (5% a &lt;10%)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input type="number" step={0.1} value={clusterA} onChange={(e) => setClusterA(e.target.value)} className="w-32" />
+                        <span className="text-sm text-muted-foreground">p.p.</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Ex.: -2 reduz 8% para 6%</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Cluster B (10% a &lt;15%)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input type="number" step={0.1} value={clusterB} onChange={(e) => setClusterB(e.target.value)} className="w-32" />
+                        <span className="text-sm text-muted-foreground">p.p.</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Cluster C (15% a &lt;20%)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input type="number" step={0.1} value={clusterC} onChange={(e) => setClusterC(e.target.value)} className="w-32" />
+                        <span className="text-sm text-muted-foreground">p.p.</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Cluster D (≥20%)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input type="number" step={0.1} value={clusterD} onChange={(e) => setClusterD(e.target.value)} className="w-32" />
+                        <span className="text-sm text-muted-foreground">p.p.</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Ex.: -5 reduz 22% para 17%</p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end">
+                <Button onClick={handleSaveClusterAdjustment} disabled={isSaving}>
+                  {isSaving ? 'Salvando...' : 'Salvar Ajustes por Cluster'}
+                </Button>
+              </div>
+
+              <Alert className="bg-muted/40">
+                <AlertDescription className="text-xs">
+                  Ordem: 1) Desconto do ano anterior → 2) Ajuste por Cluster → 3) CAP. Exceções: Trilho Especial e MACOM não são afetados.
                 </AlertDescription>
               </Alert>
             </>

@@ -53,6 +53,15 @@ export interface SeriesAnnualValuesConfig {
   inputMode: 'annual' | 'monthly'
 }
 
+// Rematrícula — Ajuste por Cluster do Desconto Sugerido
+export interface ClusterAdjustmentConfig {
+  enabled: boolean
+  clusterA: number // 5% a <10%
+  clusterB: number // 10% a <15%
+  clusterC: number // 15% a <20%
+  clusterD: number // ≥20%
+}
+
 // Chaves no Supabase
 const CAP_KEYS = {
   enabled: 'rematricula.suggested_discount_cap.enabled',
@@ -98,6 +107,15 @@ const SERIES_ANNUAL_KEYS = {
   inputMode: 'series.annual_values.input_mode', // 'annual' | 'monthly'
 } as const
 
+// Rematrícula — Ajuste por Cluster do Desconto Sugerido
+const CLUSTER_KEYS = {
+  enabled: 'rematricula.cluster_adjustment.enabled',
+  clusterA: 'rematricula.cluster_adjustment.cluster_a.adjustment',
+  clusterB: 'rematricula.cluster_adjustment.cluster_b.adjustment',
+  clusterC: 'rematricula.cluster_adjustment.cluster_c.adjustment',
+  clusterD: 'rematricula.cluster_adjustment.cluster_d.adjustment',
+} as const
+
 // Chaves de cache no localStorage
 const LS_KEYS = {
   suggestedCap: 'cfg.suggested_discount_cap.v1',
@@ -109,6 +127,7 @@ const LS_KEYS = {
   rematriculaPaymentNotes: 'cfg.rematricula_payment_notes.v1',
   novomatriculaPaymentNotes: 'cfg.novomatricula_payment_notes.v1',
   seriesAnnualValues: 'cfg.series_annual_values.v1',
+  rematriculaCluster: 'cfg.rematricula_cluster_adjustment.v1',
 } as const
 
 const DEFAULTS: SuggestedDiscountCapConfig = { enabled: false, percent: 20 }
@@ -119,6 +138,13 @@ const REMATRICULA_EDIT_DEFAULTS: RematriculaEditConfig = {
   guardiansEnabled: false,
   addressEnabled: false,
   telemetryEnabled: false,
+}
+const CLUSTER_DEFAULTS: ClusterAdjustmentConfig = {
+  enabled: false,
+  clusterA: 0,
+  clusterB: 0,
+  clusterC: 0,
+  clusterD: 0,
 }
 
 const MACOM_DEFAULTS: MacomDiscountConfig = {
@@ -140,6 +166,7 @@ let memCacheInad: { value: InadimplenciaConfig; expiresAt: number } | null = nul
 let memCachePaymentNotes: { value: PaymentNotesConfig; expiresAt: number } | null = null
 let memCacheNovoPaymentNotes: { value: PaymentNotesConfig; expiresAt: number } | null = null
 let memCacheSeriesAnnual: { value: SeriesAnnualValuesConfig; expiresAt: number } | null = null
+let memCacheCluster: { value: ClusterAdjustmentConfig; expiresAt: number } | null = null
 
 function now() {
   return Date.now()
@@ -445,6 +472,163 @@ export async function getCashDiscountConfig(options?: { forceRefresh?: boolean }
 export function invalidateCashDiscountConfigCache() {
   memCachePav = null
   removeLSPav()
+}
+
+// =============================
+// Rematrícula — Ajuste por Cluster (F2)
+// =============================
+
+function readLSCluster(): { value: ClusterAdjustmentConfig; expiresAt: number } | null {
+  try {
+    if (!hasWindow()) return null
+    const raw = localStorage.getItem(LS_KEYS.rematriculaCluster)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    if (typeof parsed.expiresAt !== 'number' || !parsed.value) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeLSCluster(value: ClusterAdjustmentConfig, ttlMs = TTL_MS) {
+  try {
+    if (!hasWindow()) return
+    const payload = JSON.stringify({ value, expiresAt: now() + ttlMs })
+    localStorage.setItem(LS_KEYS.rematriculaCluster, payload)
+  } catch {
+    // noop
+  }
+}
+
+function removeLSCluster() {
+  try {
+    if (!hasWindow()) return
+    localStorage.removeItem(LS_KEYS.rematriculaCluster)
+  } catch {
+    // noop
+  }
+}
+
+async function fetchClusterAdjustmentConfigFromServer(): Promise<ClusterAdjustmentConfig | null> {
+  try {
+    const [eRes, aRes, bRes, cRes, dRes] = await Promise.all([
+      supabase.rpc('get_system_config', { config_key: CLUSTER_KEYS.enabled }),
+      supabase.rpc('get_system_config', { config_key: CLUSTER_KEYS.clusterA }),
+      supabase.rpc('get_system_config', { config_key: CLUSTER_KEYS.clusterB }),
+      supabase.rpc('get_system_config', { config_key: CLUSTER_KEYS.clusterC }),
+      supabase.rpc('get_system_config', { config_key: CLUSTER_KEYS.clusterD }),
+    ])
+
+    if (eRes.error) console.warn('[config.service] get_system_config error (cluster.enabled):', eRes.error)
+    if (aRes.error) console.warn('[config.service] get_system_config error (cluster.a):', aRes.error)
+    if (bRes.error) console.warn('[config.service] get_system_config error (cluster.b):', bRes.error)
+    if (cRes.error) console.warn('[config.service] get_system_config error (cluster.c):', cRes.error)
+    if (dRes.error) console.warn('[config.service] get_system_config error (cluster.d):', dRes.error)
+
+    const enabled = parseBooleanLike(eRes.data ?? CLUSTER_DEFAULTS.enabled)
+    const clusterA = clamp(Number(aRes.data ?? CLUSTER_DEFAULTS.clusterA), -100, 100)
+    const clusterB = clamp(Number(bRes.data ?? CLUSTER_DEFAULTS.clusterB), -100, 100)
+    const clusterC = clamp(Number(cRes.data ?? CLUSTER_DEFAULTS.clusterC), -100, 100)
+    const clusterD = clamp(Number(dRes.data ?? CLUSTER_DEFAULTS.clusterD), -100, 100)
+
+    return { enabled, clusterA, clusterB, clusterC, clusterD }
+  } catch (err) {
+    console.error('[config.service] fetchClusterAdjustmentConfigFromServer failed:', err)
+    return null
+  }
+}
+
+export async function getClusterAdjustmentConfig(options?: { forceRefresh?: boolean }): Promise<ClusterAdjustmentConfig> {
+  const force = !!options?.forceRefresh
+
+  // 1) memória
+  if (!force && memCacheCluster && !isExpired(memCacheCluster.expiresAt)) {
+    return memCacheCluster.value
+  }
+
+  // 2) localStorage
+  if (!force) {
+    const ls = readLSCluster()
+    if (ls && !isExpired(ls.expiresAt)) {
+      memCacheCluster = { value: ls.value, expiresAt: ls.expiresAt }
+      return ls.value
+    }
+  }
+
+  // 3) servidor
+  const remote = await fetchClusterAdjustmentConfigFromServer()
+  if (remote) {
+    const expiresAt = now() + TTL_MS
+    memCacheCluster = { value: remote, expiresAt }
+    writeLSCluster(remote, TTL_MS)
+    return remote
+  }
+
+  // 4) fallback suave a LS expirado
+  const lsExpired = readLSCluster()
+  if (lsExpired && lsExpired.value) {
+    const fallback = lsExpired.value
+    const expiresAt = now() + 30 * 1000
+    memCacheCluster = { value: fallback, expiresAt }
+    return fallback
+  }
+
+  // 5) defaults
+  const expiresAt = now() + 30 * 1000
+  memCacheCluster = { value: CLUSTER_DEFAULTS, expiresAt }
+  return CLUSTER_DEFAULTS
+}
+
+export function invalidateClusterAdjustmentConfigCache() {
+  memCacheCluster = null
+  removeLSCluster()
+}
+
+export function primeClusterAdjustmentConfigCache(value: Partial<ClusterAdjustmentConfig>, ttlMs = TTL_MS) {
+  const v: ClusterAdjustmentConfig = {
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : CLUSTER_DEFAULTS.enabled,
+    clusterA: typeof value.clusterA === 'number' ? clamp(value.clusterA, -100, 100) : CLUSTER_DEFAULTS.clusterA,
+    clusterB: typeof value.clusterB === 'number' ? clamp(value.clusterB, -100, 100) : CLUSTER_DEFAULTS.clusterB,
+    clusterC: typeof value.clusterC === 'number' ? clamp(value.clusterC, -100, 100) : CLUSTER_DEFAULTS.clusterC,
+    clusterD: typeof value.clusterD === 'number' ? clamp(value.clusterD, -100, 100) : CLUSTER_DEFAULTS.clusterD,
+  }
+  const expiresAt = now() + ttlMs
+  memCacheCluster = { value: v, expiresAt }
+  writeLSCluster(v, ttlMs)
+}
+
+// Função pura — aplica ajuste por cluster e retorna metadados úteis
+export function applyClusterAdjustment(
+  previousPercent: number,
+  cfg: ClusterAdjustmentConfig
+): { finalPercent: number; clusterApplied: 'A' | 'B' | 'C' | 'D' | null; adjustment: number } {
+  const p = clamp(isFinite(previousPercent) ? previousPercent : 0, 0, 100)
+
+  if (!cfg?.enabled) {
+    return { finalPercent: p, clusterApplied: null, adjustment: 0 }
+  }
+
+  let adjustment = 0
+  let clusterApplied: 'A' | 'B' | 'C' | 'D' | null = null
+
+  if (p >= 5 && p < 10) {
+    adjustment = cfg.clusterA
+    clusterApplied = 'A'
+  } else if (p >= 10 && p < 15) {
+    adjustment = cfg.clusterB
+    clusterApplied = 'B'
+  } else if (p >= 15 && p < 20) {
+    adjustment = cfg.clusterC
+    clusterApplied = 'C'
+  } else if (p >= 20) {
+    adjustment = cfg.clusterD
+    clusterApplied = 'D'
+  }
+
+  const finalPercent = clamp(p + adjustment, 0, 100)
+  return { finalPercent, clusterApplied, adjustment }
 }
 
 // =============================

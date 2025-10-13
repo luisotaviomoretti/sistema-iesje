@@ -31,7 +31,7 @@ import { mapMatriculaUserEscolaToFormValue, labelFromDbValue, labelFromFormValue
 import { getFormEscolaFromAny } from '@/features/matricula-nova/utils/escola'
 import { toast } from 'sonner'
 import { validateFinalizeInput } from '../services/rematriculaValidation'
-import { getSuggestedDiscountCap, applySuggestedDiscountCap, invalidateSuggestedDiscountCapCache, getMacomConfig, getRematriculaPaymentNotesConfig } from '@/lib/config/config.service'
+import { getSuggestedDiscountCap, applySuggestedDiscountCap, invalidateSuggestedDiscountCapCache, getMacomConfig, getRematriculaPaymentNotesConfig, getClusterAdjustmentConfig, applyClusterAdjustment, invalidateClusterAdjustmentConfigCache } from '@/lib/config/config.service'
 import type { MacomDiscountConfig } from '@/lib/config/config.service'
 import { isMacomTrack } from '../utils/track'
 import { getRematriculaProposalGenerator } from '../services/pdf/rematriculaProposalGenerator'
@@ -90,7 +90,7 @@ export default function RematriculaDetailsPage() {
   // MACOM config (F2 gating do sugerido)
   const [macomCfg, setMacomCfg] = useState<MacomDiscountConfig | null>(null)
 
-  // Buscar config com cache e calcular suggested cap de forma segura
+  // Buscar config com cache e calcular suggested (Cluster -> CAP) de forma segura
   useEffect(() => {
     // Inicialmente usar o valor base para evitar flicker
     setCappedSuggested(baseSuggestedPercent)
@@ -108,9 +108,13 @@ export default function RematriculaDetailsPage() {
     // Buscar config de forma assíncrona
     ;(async () => {
       try {
-        const cfg = await getSuggestedDiscountCap()
-        const res = applySuggestedDiscountCap(baseSuggestedPercent, cfg)
-        setCappedSuggested(res.finalPercent)
+        // 1) Aplicar ajuste por CLUSTER
+        const clusterCfg = await getClusterAdjustmentConfig()
+        const clusterRes = applyClusterAdjustment(baseSuggestedPercent, clusterCfg)
+        // 2) Aplicar CAP sobre o resultado do cluster
+        const capCfg = await getSuggestedDiscountCap()
+        const capRes = applySuggestedDiscountCap(clusterRes.finalPercent, capCfg)
+        setCappedSuggested(capRes.finalPercent)
         // meta opcional para F6 (aviso visual) será implementada depois
       } catch {
         // Falha na config: manter valor base
@@ -579,9 +583,13 @@ export default function RematriculaDetailsPage() {
                   // Trilho Especial: sem CAP — preserva valor integral do ano anterior
                   overrideToSend = baseSuggestedPercent
                 } else {
+                  // Recalcular de forma determinística: Cluster -> CAP
+                  invalidateClusterAdjustmentConfigCache()
                   invalidateSuggestedDiscountCapCache()
-                  const freshCfg = await getSuggestedDiscountCap()
-                  overrideToSend = applySuggestedDiscountCap(baseSuggestedPercent, freshCfg).finalPercent
+                  const freshClusterCfg = await getClusterAdjustmentConfig()
+                  const afterCluster = applyClusterAdjustment(baseSuggestedPercent, freshClusterCfg)
+                  const freshCapCfg = await getSuggestedDiscountCap()
+                  overrideToSend = applySuggestedDiscountCap(afterCluster.finalPercent, freshCapCfg).finalPercent
                 }
               } catch {
                 overrideToSend = (cappedSuggested ?? undefined) as any

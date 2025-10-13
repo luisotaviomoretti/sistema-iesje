@@ -36,7 +36,10 @@
       "Bash(sha256sum:*)",
       "Bash(git remote add:*)",
       "Bash(gh repo create:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(git log:*)",
+      "Bash(vercel:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []
