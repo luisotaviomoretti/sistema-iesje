@@ -272,10 +272,10 @@ export default function SystemConfigurations() {
       else await createWithFinanceFallback({ chave: CLUSTER_KEY_B, valor: bVal, descricao: 'Ajuste em pontos percentuais para Cluster B (10% a <15%). Valores negativos reduzem, positivos aumentam.' })
 
       if (existsC) await updateConfigValue({ chave: CLUSTER_KEY_C, valor: cVal, updated_by: adminEmail })
-      else await createWithFinanceFallback({ chave: CLUSTER_KEY_C, valor: cVal, descricao: 'Ajuste em pontos percentuais para Cluster C (15% a <20%). Valores negativos reduzem, positivos aumentam.' })
+      else await createWithFinanceFallback({ chave: CLUSTER_KEY_C, valor: cVal, descricao: 'Ajuste em pontos percentuais para Cluster C (15% a ≤20%). Valores negativos reduzem, positivos aumentam.' })
 
       if (existsD) await updateConfigValue({ chave: CLUSTER_KEY_D, valor: dVal, updated_by: adminEmail })
-      else await createWithFinanceFallback({ chave: CLUSTER_KEY_D, valor: dVal, descricao: 'Ajuste em pontos percentuais para Cluster D (≥20%). Valores negativos reduzem, positivos aumentam.' })
+      else await createWithFinanceFallback({ chave: CLUSTER_KEY_D, valor: dVal, descricao: 'Ajuste em pontos percentuais para Cluster D (>20%). Valores negativos reduzem, positivos aumentam.' })
 
       // Cache local — refletir imediatamente
       invalidateClusterAdjustmentConfigCache()
@@ -1310,7 +1310,7 @@ export default function SystemConfigurations() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Cluster C (15% a &lt;20%)</Label>
+                      <Label>Cluster C (15% a ≤20%)</Label>
                       <div className="flex items-center gap-2">
                         <Input type="number" step={0.1} value={clusterC} onChange={(e) => setClusterC(e.target.value)} className="w-32" />
                         <span className="text-sm text-muted-foreground">p.p.</span>
@@ -1318,7 +1318,7 @@ export default function SystemConfigurations() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Cluster D (≥20%)</Label>
+                      <Label>Cluster D (&gt;20%)</Label>
                       <div className="flex items-center gap-2">
                         <Input type="number" step={0.1} value={clusterD} onChange={(e) => setClusterD(e.target.value)} className="w-32" />
                         <span className="text-sm text-muted-foreground">p.p.</span>

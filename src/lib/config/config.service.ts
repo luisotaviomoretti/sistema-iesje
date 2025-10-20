@@ -619,10 +619,10 @@ export function applyClusterAdjustment(
   } else if (p >= 10 && p < 15) {
     adjustment = cfg.clusterB
     clusterApplied = 'B'
-  } else if (p >= 15 && p < 20) {
+  } else if (p >= 15 && p <= 20) {
     adjustment = cfg.clusterC
     clusterApplied = 'C'
-  } else if (p >= 20) {
+  } else if (p > 20) {
     adjustment = cfg.clusterD
     clusterApplied = 'D'
   }
