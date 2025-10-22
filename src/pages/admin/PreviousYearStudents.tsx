@@ -123,6 +123,7 @@ const PreviousYearStudentsAdmin: React.FC = () => {
                     <TableHead className="text-right">% Sugerido</TableHead>
                     <TableHead>Código</TableHead>
                     <TableHead>Status Matrícula</TableHead>
+                    <TableHead>Data Matrícula</TableHead>
                     <TableHead className="text-right">% Praticado</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -136,6 +137,7 @@ const PreviousYearStudentsAdmin: React.FC = () => {
                       <TableCell className="text-right">{Number(r.total_discount_percentage || 0)}%</TableCell>
                       <TableCell>{r.discount_code || '-'}</TableCell>
                       <TableCell>{r.has_enrollment ? (r.enrollment_status || '—') : '—'}</TableCell>
+                      <TableCell>{r.has_enrollment && r.enrollment_created_at ? new Date(r.enrollment_created_at).toLocaleString('pt-BR') : '—'}</TableCell>
                       <TableCell className="text-right">{r.has_enrollment ? `${Number(r.enrollment_discount_percentage || 0)}%` : '—'}</TableCell>
                     </TableRow>
                   ))}
