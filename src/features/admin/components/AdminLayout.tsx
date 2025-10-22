@@ -89,6 +89,12 @@ const AdminLayout = () => {
       requiredRole: 'coordenador' as const
     },
     {
+      name: 'Base Ano Anterior',
+      href: '/admin/previous-year-students',
+      icon: Users,
+      requiredRole: 'coordenador' as const
+    },
+    {
       name: 'Usuários',
       href: '/admin/usuarios',
       icon: Users,
