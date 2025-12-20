@@ -47,14 +47,38 @@ export function useEnrollmentsBySeries(filters: EnrollmentsBySeriesFilters) {
 
       if (seriesError) throw seriesError
 
-      // Step 2: Fetch enrollments for the selected escola with financial data
-      const { data: enrollments, error: enrollmentsError } = await supabase
+      // Step 2: Fetch ALL enrollments for the selected escola with financial data using pagination
+      // First get the total count
+      const { count: totalCount, error: countError } = await supabase
         .from("enrollments")
-        .select("series_name, series_id, student_escola, status, final_monthly_value, material_cost, base_value, total_discount_value")
+        .select("*", { count: "exact", head: true })
         .eq("student_escola", filters.escola)
         .neq("status", "deleted")
 
-      if (enrollmentsError) throw enrollmentsError
+      if (countError) throw countError
+
+      // Fetch all enrollments with pagination
+      let enrollments: any[] = []
+      if (totalCount && totalCount > 0) {
+        const pageSize = 1000
+        let offset = 0
+
+        while (offset < totalCount) {
+          const { data, error } = await supabase
+            .from("enrollments")
+            .select("series_name, series_id, student_escola, status, final_monthly_value, material_cost, base_value, total_discount_value")
+            .eq("student_escola", filters.escola)
+            .neq("status", "deleted")
+            .range(offset, offset + pageSize - 1)
+            .order("created_at", { ascending: true })
+
+          if (error) throw error
+          if (!data || data.length === 0) break
+          
+          enrollments = [...enrollments, ...data]
+          offset += pageSize
+        }
+      }
 
       // Step 3: Aggregate enrollments by series_id
       interface SeriesAggregation {

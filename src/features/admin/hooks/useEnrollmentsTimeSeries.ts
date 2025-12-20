@@ -122,24 +122,55 @@ export function useEnrollmentsTimeSeries(filters: TimeSeriesFilters) {
         }
       }
 
-      // Build base query
-      let query = supabase
+      // First get the count of records to fetch
+      let countQuery = supabase
         .from("enrollments")
-        .select("id, created_at, student_escola, tag_matricula, status")
+        .select("*", { count: "exact", head: true })
         .gte("created_at", startISO)
         .lte("created_at", endISO)
         .neq("status", "deleted")
 
       if (filters.escola && filters.escola !== "all") {
-        query = query.eq("student_escola", filters.escola)
+        countQuery = countQuery.eq("student_escola", filters.escola)
       }
       if (filters.origin && filters.origin !== "all") {
-        query = query.eq("tag_matricula", filters.origin)
+        countQuery = countQuery.eq("tag_matricula", filters.origin)
       }
 
-      // We keep dataset bounded by date range to avoid large responses
-      const { data, error } = await query.order("created_at", { ascending: true })
-      if (error) throw error
+      const { count: totalCount, error: countError } = await countQuery
+      if (countError) throw countError
+
+      // Fetch all records with pagination
+      let data: any[] = []
+      if (totalCount && totalCount > 0) {
+        const pageSize = 1000
+        let offset = 0
+
+        while (offset < totalCount) {
+          let query = supabase
+            .from("enrollments")
+            .select("id, created_at, student_escola, tag_matricula, status")
+            .gte("created_at", startISO)
+            .lte("created_at", endISO)
+            .neq("status", "deleted")
+            .range(offset, offset + pageSize - 1)
+            .order("created_at", { ascending: true })
+
+          if (filters.escola && filters.escola !== "all") {
+            query = query.eq("student_escola", filters.escola)
+          }
+          if (filters.origin && filters.origin !== "all") {
+            query = query.eq("tag_matricula", filters.origin)
+          }
+
+          const { data: pageData, error } = await query
+          if (error) throw error
+          if (!pageData || pageData.length === 0) break
+          
+          data = [...data, ...pageData]
+          offset += pageSize
+        }
+      }
 
       // Aggregate by date
       const skeleton = buildDateSkeleton(startLocalDate, days)

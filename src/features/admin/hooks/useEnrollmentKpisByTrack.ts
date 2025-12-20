@@ -89,37 +89,79 @@ export function useEnrollmentKpisByTrack(filters: EnrollmentKpisByTrackFilters) 
         }
       }
 
-      let query = supabase
+      // Primeiro, obter a contagem total usando count
+      let countQuery = supabase
         .from("enrollments")
-        .select(
-          "id, created_at, student_escola, tag_matricula, status, final_monthly_value, material_cost, total_discount_value, base_value, track_name"
-        )
+        .select("*", { count: "exact", head: true })
         .gte("created_at", startISO)
         .lte("created_at", endISO)
         .neq("status", "deleted")
         .in("track_name", ["regular", "combinado"])
 
       if (filters.escola && filters.escola !== "all") {
-        query = query.eq("student_escola", filters.escola)
+        countQuery = countQuery.eq("student_escola", filters.escola)
       }
       if (filters.origin && filters.origin !== "all") {
-        query = query.eq("tag_matricula", filters.origin)
+        countQuery = countQuery.eq("tag_matricula", filters.origin)
       }
 
-      const { data, error } = await query.order("created_at", { ascending: true })
-      if (error) throw error
+      const { count: totalCount, error: countError } = await countQuery
+      if (countError) throw countError
 
-      let count = 0
+      // Se não há registros, retornar valores zerados
+      if (!totalCount || totalCount === 0) {
+        return { 
+          count: 0, 
+          annualRevenue: 0, 
+          sumBaseValue: 0, 
+          sumTotalDiscountValue: 0, 
+          avgDiscountRatio: 0 
+        }
+      }
+
+      // Buscar todos os registros com paginação
+      const pageSize = 1000
+      let allData: any[] = []
+      let offset = 0
+
+      while (offset < totalCount) {
+        let query = supabase
+          .from("enrollments")
+          .select(
+            "id, created_at, student_escola, tag_matricula, status, final_monthly_value, material_cost, total_discount_value, base_value, track_name"
+          )
+          .gte("created_at", startISO)
+          .lte("created_at", endISO)
+          .neq("status", "deleted")
+          .in("track_name", ["regular", "combinado"])
+          .range(offset, offset + pageSize - 1)
+          .order("created_at", { ascending: true })
+
+        if (filters.escola && filters.escola !== "all") {
+          query = query.eq("student_escola", filters.escola)
+        }
+        if (filters.origin && filters.origin !== "all") {
+          query = query.eq("tag_matricula", filters.origin)
+        }
+
+        const { data, error } = await query
+        if (error) throw error
+        
+        if (!data || data.length === 0) break
+        allData = [...allData, ...data]
+        offset += pageSize
+      }
+
+      // Calcular métricas com todos os dados
       let annualRevenue = 0
       let sumBaseValue = 0
       let sumTotalDiscountValue = 0
 
-      for (const row of data || []) {
-        count += 1
-        const fm = Number((row as any).final_monthly_value ?? 0)
-        const mat = Number((row as any).material_cost ?? 0)
-        const base = Number((row as any).base_value ?? 0)
-        const disc = Number((row as any).total_discount_value ?? 0)
+      for (const row of allData) {
+        const fm = Number(row.final_monthly_value ?? 0)
+        const mat = Number(row.material_cost ?? 0)
+        const base = Number(row.base_value ?? 0)
+        const disc = Number(row.total_discount_value ?? 0)
 
         const monthlyTotal = (isFinite(fm) ? fm : 0) + (isFinite(mat) ? mat : 0)
         // 12 * (final_monthly_value + material_cost)
@@ -132,7 +174,13 @@ export function useEnrollmentKpisByTrack(filters: EnrollmentKpisByTrackFilters) 
 
       const avgDiscountRatio = sumBaseValue > 0 ? sumTotalDiscountValue / sumBaseValue : 0
 
-      return { count, annualRevenue, sumBaseValue, sumTotalDiscountValue, avgDiscountRatio }
+      return { 
+        count: totalCount, 
+        annualRevenue, 
+        sumBaseValue, 
+        sumTotalDiscountValue, 
+        avgDiscountRatio 
+      }
     },
   })
 }
